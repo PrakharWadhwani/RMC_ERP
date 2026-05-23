@@ -2,51 +2,76 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  Package, 
-  Users, 
-  Wallet, 
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  Package,
+  Users,
+  Wallet,
   Settings,
   Zap,
-  ShieldCheck
+  ShieldCheck,
+  Truck,
+  Receipt,
+  Coins,
+  Search
 } from "lucide-react";
 import styles from "./Sidebar.module.css";
 import { cn } from "../../lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
-import { useAuthStore } from "../../store/useAuthStore"; // Added import
+import { useAuthStore } from "../../store/useAuthStore";
 
 const menuItems = [
   { name: "Dashboard", icon: LayoutDashboard, path: "/" },
+  { name: "Search", icon: Search, path: "/search" },
   { name: "Quick Sale", icon: ShoppingCart, path: "/sales" },
+  { name: "Purchases", icon: Receipt, path: "/purchases" },
   { name: "Inventory", icon: Package, path: "/inventory" },
-  { name: "Stakeholders", icon: Users, path: "/stakeholders" },
+  { name: "Customers", icon: Users, path: "/customers" },
+  { name: "Vendors", icon: Truck, path: "/vendors" },
   { name: "Finances", icon: Wallet, path: "/finances" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { username } = useAuthStore(); // Extract username here
+  const { username, isAdmin } = useAuthStore();
 
   return (
     <aside className={styles.sidebar}>
       {/* Branding Area */}
       <div className={styles.logo}>
         <Zap size={24} fill="currentColor" />
-        <span>RAINBOW ERP</span>
+        <span>RMC ERP</span>
       </div>
 
       {/* Navigation Links */}
       <nav className={styles.navGroup}>
-        {/* Admin Link - Moved outside the map to fix the syntax errors */}
-        {username === 'leo' && (
+        {isAdmin && (
+          <>
+            <Link 
+              href="/admin/approvals" 
+              className={cn(styles.navItem, pathname === "/admin/approvals" && styles.active)}
+            >
+              <ShieldCheck size={20} />
+              Staff Requests
+            </Link>
+            <Link 
+              href="/admin/salary" 
+              className={cn(styles.navItem, pathname === "/admin/salary" && styles.active)}
+            >
+              <Coins size={20} />
+              Staff Salaries
+            </Link>
+          </>
+        )}
+
+        {username && !isAdmin && (
           <Link 
-            href="/admin/approvals" 
-            className={cn(styles.navItem, pathname === "/admin/approvals" && styles.active)}
+            href="/salary" 
+            className={cn(styles.navItem, pathname === "/salary" && styles.active)}
           >
-            <ShieldCheck size={20} />
-            Staff Requests
+            <Coins size={20} />
+            My Salary
           </Link>
         )}
 

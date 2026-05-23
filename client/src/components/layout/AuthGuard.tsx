@@ -8,7 +8,7 @@ import { Loader2 } from "lucide-react";
 const PUBLIC_ROUTES = ["/login", "/register"];
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, username, hydrate } = useAuthStore();
+  const { isAuthenticated, isAdmin, hydrate } = useAuthStore();
   const pathname = usePathname();
   const router = useRouter();
   const [checked, setChecked] = useState(false);
@@ -35,12 +35,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     // 2. Admin Security Check
-    // If the path is an admin page and the user is NOT leo, kick them to dashboard
-    if (pathname.startsWith("/admin") && username !== "leo") {
+    // If the path is an admin page and the user is not an admin, kick them to dashboard
+    if (pathname.startsWith("/admin") && !isAdmin) {
       router.replace("/");
     }
     
-  }, [checked, isAuthenticated, username, pathname, router]);
+  }, [checked, isAuthenticated, isAdmin, pathname, router]);
 
   if (!checked) {
     return (

@@ -17,7 +17,7 @@ export default function StakeholderDetailPage({
   const { id } = use(params);
 
   const { data, loading, error, refetch } = useLaserFocus({
-    type: "entity",
+    type: "customer",
     id,
   });
 
@@ -32,7 +32,7 @@ export default function StakeholderDetailPage({
   if (error || !data) {
     return (
       <div className="max-w-6xl mx-auto p-4 space-y-4">
-        <Link href="/stakeholders">
+        <Link href="/customers">
           <Button variant="ghost" className="font-bold gap-2"><ArrowLeft className="h-4 w-4" /> Back</Button>
         </Link>
         <Card className="border-2 border-destructive/20">
@@ -53,12 +53,12 @@ export default function StakeholderDetailPage({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/stakeholders">
+          <Link href="/customers">
             <Button variant="ghost" size="icon"><ArrowLeft className="h-5 w-5" /></Button>
           </Link>
           <div>
             <h1 className="text-3xl font-black tracking-tight uppercase">Laser Focus</h1>
-            <p className="text-muted-foreground text-sm font-bold uppercase opacity-50">Entity #{id}</p>
+            <p className="text-muted-foreground text-sm font-bold uppercase opacity-50">Customer #{id}</p>
           </div>
         </div>
         <Button variant="outline" size="sm" onClick={refetch}><RefreshCw className="mr-2 h-4 w-4" /> Refresh</Button>
@@ -77,8 +77,8 @@ export default function StakeholderDetailPage({
               </div>
               <div>
                 <p className="text-2xl font-black">{profile.name}</p>
-                <Badge variant={profile.entity_type === "CUSTOMER" ? "default" : "secondary"} className="font-bold text-[10px] mt-1">
-                  {profile.entity_type}
+                <Badge variant={profile.type === "CUSTOMER" ? "default" : "secondary"} className="font-bold text-[10px] mt-1">
+                  {profile.type}
                 </Badge>
               </div>
             </div>

@@ -58,7 +58,7 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="login-username" className="text-xs font-black uppercase tracking-wider text-white/60">
-                Username
+                Phone Number
               </Label>
               <Input
                 id="login-username"
@@ -66,6 +66,7 @@ export default function LoginPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
+                placeholder="Enter phone number or existing username"
                 className="h-12 bg-white/5 border-white/10 text-white focus:border-[var(--primary-green)]"
               />
             </div>

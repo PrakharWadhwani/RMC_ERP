@@ -10,7 +10,7 @@ import { useAuthStore } from "../../store/useAuthStore"; // Use the store!
 import Link from "next/link";
 
 export default function RegisterPage() {
-  const [formData, setFormData] = useState({ username: "", email: "", password: "" });
+  const [formData, setFormData] = useState({ username: "", phone_no: "", password: "" });
   const { register, isLoading } = useAuthStore(); // Get register from store
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const router = useRouter();
@@ -19,8 +19,7 @@ export default function RegisterPage() {
     e.preventDefault();
     setMessage(null);
 
-    // Use the store function we created
-    const result = await register(formData.username, formData.email, formData.password);
+    const result = await register(formData.username, formData.phone_no, formData.password);
 
     if (result.success) {
       setMessage({ type: 'success', text: result.message });
@@ -54,12 +53,12 @@ export default function RegisterPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase text-white/60">Email</Label>
+              <Label className="text-xs font-black uppercase text-white/60">Phone Number</Label>
               <Input 
-                type="email"
+                type="tel"
                 className="bg-white/5 border-white/10 text-white"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})} 
+                value={formData.phone_no}
+                onChange={(e) => setFormData({...formData, phone_no: e.target.value})} 
                 required 
               />
             </div>

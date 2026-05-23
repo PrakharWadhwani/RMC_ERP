@@ -8,7 +8,8 @@ import api from "../../../lib/api";
 export default function UserApprovalsPage() {
   const [pendingUsers, setPendingUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { username } = useAuthStore();
+  const [salaries, setSalaries] = useState<Record<number, string>>({});
+  const { isAdmin } = useAuthStore();
 
   const fetchUsers = async () => {
     try {
@@ -22,11 +23,11 @@ export default function UserApprovalsPage() {
   };
 
   useEffect(() => {
-    if (username === "leo") fetchUsers();
-  }, [username]);
+    if (isAdmin) fetchUsers();
+  }, [isAdmin]);
 
   // Security Guard: Prevent non-admins from viewing the content
-  if (username !== "leo") {
+  if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-black">
         <div className="text-center space-y-4">
@@ -37,9 +38,13 @@ export default function UserApprovalsPage() {
     );
   }
 
-  const handleAction = async (userId: number, action: 'approve' | 'reject') => {
+  const handleAction = async (userId: number, action: 'approve' | 'reject', salaryStr?: string) => {
     try {
-      await api.post(`/auth/manage-user/${userId}?action=${action}`);
+      let url = `/auth/manage-user/${userId}?action=${action}`;
+      if (action === "approve" && salaryStr) {
+        url += `&salary=${parseFloat(salaryStr)}`;
+      }
+      await api.post(url);
       fetchUsers();
     } catch (err) {
       alert("Action failed");
@@ -59,14 +64,31 @@ export default function UserApprovalsPage() {
       ) : (
         <div className="grid gap-4">
           {pendingUsers.map((user: any) => (
-            <div key={user.id} className="flex items-center justify-between p-6 rounded-2xl bg-white/5 border border-white/10">
+            <div key={user.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-6 rounded-2xl bg-white/5 border border-white/10 gap-4">
               <div>
                 <p className="text-white font-black">{user.username}</p>
                 <p className="text-white/40 text-xs">{user.email}</p>
               </div>
-              <div className="flex gap-3">
-                <button onClick={() => handleAction(user.id, 'reject')} className="text-red-500 font-bold px-4">REJECT</button>
-                <button onClick={() => handleAction(user.id, 'approve')} className="bg-green-500 text-black font-bold px-6 py-2 rounded-lg">APPROVE</button>
+              <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto justify-end">
+                <div className="flex flex-col gap-1 w-full sm:w-auto">
+                  <label className="text-[10px] text-white/40 uppercase font-black">Base Salary (₹)</label>
+                  <input
+                    type="number"
+                    value={salaries[user.id] || ""}
+                    onChange={(e) => setSalaries({ ...salaries, [user.id]: e.target.value })}
+                    placeholder="e.g. 25000"
+                    className="bg-black/50 border border-white/10 text-white font-mono px-3 py-1.5 rounded-lg w-full sm:w-32 focus:outline-none focus:border-primary text-sm"
+                  />
+                </div>
+                <div className="flex gap-3 shrink-0 items-center mt-4 sm:mt-0">
+                  <button onClick={() => handleAction(user.id, 'reject')} className="text-red-500 font-bold px-4 hover:opacity-80">REJECT</button>
+                  <button 
+                    onClick={() => handleAction(user.id, 'approve', salaries[user.id])} 
+                    className="bg-green-500 hover:bg-green-400 text-black font-black px-6 py-2 rounded-lg text-sm transition-colors"
+                  >
+                    APPROVE
+                  </button>
+                </div>
               </div>
             </div>
           ))}

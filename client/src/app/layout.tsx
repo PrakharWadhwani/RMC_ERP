@@ -9,7 +9,7 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "Rainbow ERP",
+  title: "RMC ERP",
   description: "Advanced Inventory & Sales Management",
 };
 

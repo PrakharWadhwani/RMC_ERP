@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { TrendingUp, TrendingDown, DollarSign, AlertTriangle, Users, Wallet, RefreshCw } from "lucide-react";
-import { Card, CardContent } from "../components/ui/card";
-import { Button } from "../components/ui/button";
-import { Skeleton } from "../components/ui/skeleton";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { AlertTriangle, Package, Receipt, RefreshCw, ShoppingCart, Truck, Users, Wallet } from "lucide-react";
 import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
+import { Skeleton } from "../components/ui/skeleton";
 import api from "../lib/api";
-import type { DashboardSummary, DailySummary } from "../lib/types";
+import type { DashboardSummary } from "../lib/types";
 
 export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
-  const [finance, setFinance] = useState<DailySummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,12 +19,8 @@ export default function DashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [dashRes, finRes] = await Promise.all([
-        api.get("/dashboard/summary"),
-        api.get("/finances/daily-summary"),
-      ]);
+      const dashRes = await api.get("/dashboard/summary");
       setDashboard(dashRes.data);
-      setFinance(finRes.data);
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to load dashboard.");
     } finally {
@@ -55,128 +51,173 @@ export default function DashboardPage() {
     <CardContent className="p-6 space-y-3"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-32" /></CardContent>
   );
 
+  const notifications = dashboard?.notification_items?.length
+    ? dashboard.notification_items
+    : [dashboard?.reminders || "All systems are healthy. No urgent notifications right now."];
+
   return (
-    <div className="max-w-6xl mx-auto p-4 space-y-8">
-      <div className="flex justify-between items-end">
+    <div className="mx-auto max-w-6xl space-y-8 p-4 md:p-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-4xl font-black tracking-tight uppercase">Command Center</h1>
-          <p className="text-muted-foreground text-sm font-bold uppercase opacity-50 mt-1">
-            {loading ? "Loading..." : `Viewed by ${dashboard?.viewed_by || "—"} • Today`}
+          <p className="text-[10px] font-black uppercase tracking-[0.35em] text-muted-foreground">Command Center</p>
+          <h1 className="mt-2 text-3xl font-black uppercase tracking-tight md:text-4xl">Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading ? "Loading today's operational view..." : `Viewed by ${dashboard?.viewed_by || "—"}`}
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          Refresh
         </Button>
       </div>
 
-      <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Financial Summary</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="metric-card border-2">
-          {loading ? <MetricSkeleton /> : (
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Total Revenue</p>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <p className="text-3xl font-black font-mono tracking-tight">{fmt(finance?.revenue || 0)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1 font-mono">{finance?.date || "—"}</p>
-            </CardContent>
-          )}
-        </Card>
-        <Card className="metric-card border-2">
-          {loading ? <MetricSkeleton /> : (
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Gross Profit</p>
-                <TrendingUp className="h-4 w-4 text-success" />
-              </div>
-              <p className="text-3xl font-black font-mono tracking-tight text-success">{fmt(finance?.gross_profit || 0)}</p>
-            </CardContent>
-          )}
-        </Card>
-        <Card className="metric-card border-2">
-          {loading ? <MetricSkeleton /> : (
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Total Expenses</p>
-                <TrendingDown className="h-4 w-4 text-danger" />
-              </div>
-              <p className="text-3xl font-black font-mono tracking-tight text-danger">{fmt(finance?.expenses || 0)}</p>
-            </CardContent>
-          )}
-        </Card>
-        <Card className="metric-card border-2">
-          {loading ? <MetricSkeleton /> : (
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Net Profit</p>
-                {(finance?.net_profit || 0) >= 0 ? <TrendingUp className="h-4 w-4 text-success" /> : <TrendingDown className="h-4 w-4 text-danger" />}
-              </div>
-              <p className={`text-3xl font-black font-mono tracking-tight ${(finance?.net_profit || 0) >= 0 ? "text-success" : "text-danger"}`}>
-                {fmt(finance?.net_profit || 0)}
-              </p>
-              <p className="text-[10px] text-muted-foreground mt-1">Gross Profit − Expenses</p>
-            </CardContent>
-          )}
-        </Card>
+      {/* Full-width quick actions row */}
+      <div className="w-full">
+        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground mb-2">Quick actions</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-6 w-full">
+          <Link href="/sales" className="block">
+            <Button
+              variant="outline"
+              className="h-36 w-full flex-col gap-4 rounded-2xl border-2 text-lg bg-gradient-to-br from-background to-primary/5 transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg rmc-quick-action"
+            >
+              <ShoppingCart className="h-8 w-8 text-primary" />
+              <span className="font-bold uppercase">Quick Sale</span>
+            </Button>
+          </Link>
+          <Link href="/purchases" className="block">
+            <Button
+              variant="outline"
+              className="h-36 w-full flex-col gap-4 rounded-2xl border-2 text-lg bg-gradient-to-br from-background to-secondary/5 transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg rmc-quick-action"
+            >
+              <Receipt className="h-8 w-8 text-primary" />
+              <span className="font-bold uppercase">Purchases</span>
+            </Button>
+          </Link>
+          <Link href="/inventory" className="block">
+            <Button
+              variant="outline"
+              className="h-36 w-full flex-col gap-4 rounded-2xl border-2 text-lg bg-gradient-to-br from-background to-amber-500/5 transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg rmc-quick-action"
+            >
+              <Package className="h-8 w-8 text-primary" />
+              <span className="font-bold uppercase">Inventory</span>
+            </Button>
+          </Link>
+          <Link href="/customers" className="block">
+            <Button
+              variant="outline"
+              className="h-36 w-full flex-col gap-4 rounded-2xl border-2 text-lg bg-gradient-to-br from-background to-emerald-500/5 transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg rmc-quick-action"
+            >
+              <Users className="h-8 w-8 text-primary" />
+              <span className="font-bold uppercase">Customers</span>
+            </Button>
+          </Link>
+          <Link href="/vendors" className="block">
+            <Button
+              variant="outline"
+              className="h-36 w-full flex-col gap-4 rounded-2xl border-2 text-lg bg-gradient-to-br from-background to-cyan-500/5 transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg rmc-quick-action"
+            >
+              <Truck className="h-8 w-8 text-primary" />
+              <span className="font-bold uppercase">Vendors</span>
+            </Button>
+          </Link>
+          <Link href="/finances" className="block">
+            <Button
+              variant="outline"
+              className="h-36 w-full flex-col gap-4 rounded-2xl border-2 text-lg bg-gradient-to-br from-background to-fuchsia-500/5 transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg rmc-quick-action"
+            >
+              <Wallet className="h-8 w-8 text-primary" />
+              <span className="font-bold uppercase">Finances</span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Business Overview</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="metric-card border-2">
-          {loading ? <MetricSkeleton /> : (
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Customers Owe You</p>
-                <Users className="h-4 w-4 text-success" />
+      {/* System notification below quick actions */}
+      <div className="w-full">
+        <Card className="border-2 border-primary/10 bg-primary/5 w-full mt-6">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-primary p-3 text-white">
+                <AlertTriangle className="h-5 w-5" />
               </div>
-              <p className="text-3xl font-black font-mono tracking-tight text-success">{fmt(dashboard?.customers_owe_you || 0)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Receivables</p>
-            </CardContent>
-          )}
-        </Card>
-        <Card className="metric-card border-2">
-          {loading ? <MetricSkeleton /> : (
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">You Owe Vendors</p>
-                <Wallet className="h-4 w-4 text-warning" />
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">System notification</p>
+                <p className="text-sm text-muted-foreground">Live business alerts and follow-up cues</p>
               </div>
-              <p className="text-3xl font-black font-mono tracking-tight text-warning">{fmt(dashboard?.you_owe_vendors || 0)}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Payables</p>
-            </CardContent>
-          )}
-        </Card>
-        <Card className="metric-card border-2">
-          {loading ? <MetricSkeleton /> : (
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-black uppercase text-muted-foreground tracking-wider">Low Stock Items</p>
-                <AlertTriangle className="h-4 w-4 text-danger" />
-              </div>
-              <div className="flex items-baseline gap-3">
-                <p className="text-3xl font-black font-mono tracking-tight">{dashboard?.low_stock_count || 0}</p>
-                {(dashboard?.low_stock_count || 0) > 0 && <Badge variant="destructive" className="font-bold text-[10px]">ATTENTION</Badge>}
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-1">Below 5 units</p>
-            </CardContent>
-          )}
-        </Card>
-      </div>
-
-      {!loading && dashboard?.reminders && (
-        <Card className="border-2 border-primary/10">
-          <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 rounded-xl shrink-0" style={{ background: "var(--primary-green)" }}>
-              <AlertTriangle className="h-5 w-5 text-white" />
             </div>
-            <div>
-              <p className="text-sm font-black uppercase text-muted-foreground">System Reminder</p>
-              <p className="text-lg font-bold">{dashboard.reminders}</p>
+            <div className="mt-4 space-y-3">
+              {notifications.map((item) => (
+                <div key={item} className="rounded-xl border bg-background/80 px-3 py-2">
+                  <p className="text-sm font-semibold">{item}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between rounded-xl border bg-background/80 px-3 py-2">
+              <span className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground">Low-stock threshold</span>
+              <Badge variant="outline" className="font-bold">
+                {dashboard?.low_stock_limit ?? 5}
+              </Badge>
             </div>
           </CardContent>
         </Card>
-      )}
+      </div>
+
+      <div>
+        <h2 className="text-xs font-black uppercase tracking-[0.3em] text-muted-foreground">Business overview</h2>
+        <div className="mt-3 grid gap-4 sm:grid-cols-3">
+          <Card className="border-2">
+            {loading ? (
+              <MetricSkeleton />
+            ) : (
+              <CardContent className="p-6">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Customers owe you</p>
+                  <Users className="h-4 w-4 text-emerald-600" />
+                </div>
+                <p className="font-mono text-3xl font-black tracking-tight text-emerald-600">{fmt(dashboard?.customers_owe_you || 0)}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">Outstanding receivables</p>
+              </CardContent>
+            )}
+          </Card>
+
+          <Card className="border-2">
+            {loading ? (
+              <MetricSkeleton />
+            ) : (
+              <CardContent className="p-6">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">You owe vendors</p>
+                  <Wallet className="h-4 w-4 text-amber-600" />
+                </div>
+                <p className="font-mono text-3xl font-black tracking-tight text-amber-600">{fmt(dashboard?.you_owe_vendors || 0)}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">Outstanding payables</p>
+              </CardContent>
+            )}
+          </Card>
+
+          <Card className="border-2">
+            {loading ? (
+              <MetricSkeleton />
+            ) : (
+              <CardContent className="p-6">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Low stock items</p>
+                  <AlertTriangle className="h-4 w-4 text-destructive" />
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <p className="font-mono text-3xl font-black tracking-tight">{dashboard?.low_stock_count || 0}</p>
+                  {(dashboard?.low_stock_count || 0) > 0 && (
+                    <Badge variant="destructive" className="text-[10px] font-bold">
+                      Attention
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1 text-[10px] text-muted-foreground">Items at or below your threshold</p>
+              </CardContent>
+            )}
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }

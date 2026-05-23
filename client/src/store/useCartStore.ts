@@ -6,6 +6,7 @@ export interface CartItem {
   price: number;
   qty: number;
   cost_price: number; // Snapshot of cost at time of adding to cart
+  min_selling_price: number;
 }
 
 interface CartStore {
