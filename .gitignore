@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+
+# Next.js
+client/.next/
+client/out/
+
+# Build outputs
+backend/__pycache__/
+**/__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment files
+.env
+.env.*
+
+# Database files
+*.sqlite
+*.sqlite3
+*.db
+backend/db_storage/
+
+# Uploaded assets
+uploaded_bills/
+uploaded_images/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/editor settings
+.vscode/
+.idea/

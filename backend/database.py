@@ -1,35 +1,28 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, declarative_base
 import os
-import time
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base, Session as SessionClass
 
-SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:password123@db:5432/inventory_management")
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DB_DIR = os.path.join(BASE_DIR, "db_storage")
+DB_FILE = os.path.join(DB_DIR, "rainbow_erp.db")
 
-# Retry logic: Wait for the database to be ready before creating the engine
-def create_engine_with_retry(url, max_retries=10, delay=2):
-    for attempt in range(max_retries):
-        try:
-            eng = create_engine(url)
-            # Test the connection
-            with eng.connect() as conn:
-                conn.execute(text("SELECT 1"))
-            print(f"✅ Database connected on attempt {attempt + 1}")
-            return eng
-        except Exception as e:
-            if attempt < max_retries - 1:
-                print(f"⏳ Database not ready (attempt {attempt + 1}/{max_retries}): {e}")
-                time.sleep(delay)
-            else:
-                print(f"❌ Could not connect to database after {max_retries} attempts")
-                raise
+os.makedirs(DB_DIR, exist_ok=True)
 
-engine = create_engine_with_retry(SQLALCHEMY_DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_FILE}"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(class_=SessionClass, autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
 
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
+        try:
+            from db_sync import sync_db_to_csv
+            sync_db_to_csv(db)
+        except Exception as e:
+            print(f"[SYNC ENGINE LOG] Post-route backup skipped: {e}")
         db.close()
