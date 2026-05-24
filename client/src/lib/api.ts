@@ -1,6 +1,7 @@
 import axios, { AxiosHeaders } from 'axios';
 
-export const getApiBaseUrl = () => (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+export const getApiBaseUrl = () => 
+  (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 export const resolveAssetUrl = (assetPath?: string | null) => {
   if (!assetPath) {
@@ -18,23 +19,31 @@ export const resolveAssetUrl = (assetPath?: string | null) => {
 };
 
 const api = axios.create({
-  // Point this to your father's local Docker IP or localhost
   baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
-    'localtonet-skip-warning': 'true', // Custom header to bypass local network warnings
   },
 });
 
-// This will automatically attach the JWT token once we build the login logic
+// Request Interceptor: Attaches both the authentication token and the tunnel bypass header securely
 api.interceptors.request.use((config) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  
+  // Rebuild the headers container safely to retain our custom bypass configurations
+  const headers = AxiosHeaders.from(config.headers);
+  
+  // Explicitly inject the Localtonet bypass command so the server skips the warning prompt
+  headers.set('localtonet-skip-warning', 'true');
+  
   if (token) {
-    config.headers = AxiosHeaders.from(config.headers).set('Authorization', `Bearer ${token}`);
+    headers.set('Authorization', `Bearer ${token}`);
   }
+  
+  config.headers = headers;
   return config;
 });
 
+// Response Interceptor: Automatically handles expired token configurations and clears user sessions
 api.interceptors.response.use(
   (response) => response,
   (error) => {
