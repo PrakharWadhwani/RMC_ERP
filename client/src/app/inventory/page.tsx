@@ -1,9 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Plus, RefreshCw, Loader2, FolderPlus, Search, Edit, Trash2, Copy, Settings, Package, ImageIcon, Upload, X } from "lucide-react";
+import { Plus, RefreshCw, Loader2, FolderPlus, Search, Edit, Trash2, Copy, Settings, Package, Upload, X } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -15,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn } from "../../lib/utils";
 import api, { resolveAssetUrl } from "../../lib/api";
 import type { Product, Category } from "../../lib/types";
+import ProductCatalogueOverlay from "../../components/ProductCatalogueOverlay";
 
 function InventoryContent() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -24,6 +24,7 @@ function InventoryContent() {
   const initialSearch = searchParams.get("search") ?? "";
   const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [searching, setSearching] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
 
   // Modal states
   const [prodDialogOpen, setProdDialogOpen] = useState(false);
@@ -276,7 +277,6 @@ function InventoryContent() {
             <Table>
               <TableHeader className="bg-muted/50">
                 <TableRow>
-                  <TableHead className="font-black uppercase text-[10px] w-[70px]">Image</TableHead>
                   <TableHead className="font-black uppercase text-[10px]">Product</TableHead>
                   <TableHead className="font-black uppercase text-[10px]">Category</TableHead>
                   <TableHead className="font-black uppercase text-[10px] text-center">Stock</TableHead>
@@ -292,25 +292,14 @@ function InventoryContent() {
                 ) : (
                   products.map((p) => {
                     const catName = flatCats.find(c => c.id === p.category_id)?.name.replace(/—/g, "").trim() || "Unknown";
-                    const fullImageUrl = resolveAssetUrl(p.image_url);
+                    
 
                     return (
-                      <TableRow key={p.id} className="hover:bg-muted/20">
-                        <TableCell>
-                          {fullImageUrl ? (
-                            <Image
-                              src={fullImageUrl}
-                              alt={p.model_name}
-                              width={40}
-                              height={40}
-                              className="h-10 w-10 object-cover rounded-lg border bg-background"
-                            />
-                          ) : (
-                            <div className="h-10 w-10 bg-muted rounded-lg flex items-center justify-center border border-dashed text-muted-foreground/50">
-                              <ImageIcon className="h-4 w-4" />
-                            </div>
-                          )}
-                        </TableCell>
+                      <TableRow
+                        key={p.id}
+                        className="cursor-pointer hover:bg-muted/20"
+                        onClick={() => setSelectedProductId(p.id)}
+                      >
                         <TableCell>
                           <div className="font-bold text-sm text-primary">{p.brand} {p.model_name}</div>
                           <div className="text-[10px] text-muted-foreground font-mono bg-muted inline-block px-1 rounded mt-1">{p.model_no}</div>
@@ -321,7 +310,7 @@ function InventoryContent() {
                         </TableCell>
                         <TableCell className="text-center">{getStockBadge(p.current_stock)}</TableCell>
                         <TableCell className="text-right font-mono font-black text-sm">₹{p.cost_price.toLocaleString()}</TableCell>
-                        <TableCell>
+                        <TableCell onClick={(event) => event.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-8 w-8"><Settings className="h-4 w-4 text-muted-foreground" /></Button>
@@ -392,7 +381,7 @@ function InventoryContent() {
               <Input type="number" value={currentStock} onChange={e => setCurrentStock(e.target.value)} className="font-mono font-bold" />
             </div>
             
-            {/* Image input handling */}
+            
             <div className="space-y-2">
               <Label className="text-[10px] font-bold uppercase text-muted-foreground">Product Image (Optional)</Label>
               <div className="flex items-center gap-3">
@@ -454,6 +443,11 @@ function InventoryContent() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ProductCatalogueOverlay
+        productId={selectedProductId}
+        onClose={() => setSelectedProductId(null)}
+      />
     </div>
   );
 }

@@ -1,13 +1,15 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { ArrowLeft, Phone, User, Wallet, Loader2, RefreshCw, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 import { Separator } from "../../../components/ui/separator";
+import BillOverlay from "../../../components/BillOverlay";
 import { useLaserFocus } from "../../../hooks/useLaserFocus";
+import type { BillOverlayData, Transaction } from "../../../lib/types";
 
 export default function StakeholderDetailPage({
   params,
@@ -20,6 +22,29 @@ export default function StakeholderDetailPage({
     type: "customer",
     id,
   });
+  const [selectedTransactionId, setSelectedTransactionId] = useState<number | null>(null);
+  const [selectedBillData, setSelectedBillData] = useState<BillOverlayData | null>(null);
+
+  const openBillOverlay = (tx: Transaction) => {
+    setSelectedTransactionId(tx.id);
+    setSelectedBillData({
+      id: tx.id,
+      type: tx.type,
+      date: tx.created_at,
+      stakeholder_name: profile.name,
+      total_amount: tx.total_amount,
+      paid_amount: tx.paid_amount,
+      payment_mode: tx.payment_mode,
+      description: `Customer transaction for ${profile.name}`,
+      items: (tx.items || []).map((item) => ({
+        product_id: item.product_id,
+        product_name: item.product_name || `Product ${item.product_id}`,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price ?? item.quantity * item.unit_price,
+      })),
+    });
+  };
 
   if (loading) {
     return (
@@ -135,26 +160,30 @@ export default function StakeholderDetailPage({
                   const date = new Date(tx.created_at);
 
                   return (
-                    <div key={tx.id} className="flex items-center gap-4 p-4 rounded-xl border hover:bg-muted/30 transition-colors">
-                      <div className={`p-2 rounded-lg ${isSale ? "bg-success/10" : isPurchase ? "bg-warning/10" : "bg-muted"}`}>
+                    <div
+                      key={tx.id}
+                      className="flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition-colors hover:bg-muted/30"
+                      onClick={() => openBillOverlay(tx)}
+                    >
+                      <div className={`rounded-lg p-2 ${isSale ? "bg-success/10" : isPurchase ? "bg-warning/10" : "bg-muted"}`}>
                         {isSale ? (
                           <ArrowUpRight className="h-5 w-5 text-success" />
                         ) : (
                           <ArrowDownLeft className="h-5 w-5 text-warning" />
                         )}
                       </div>
-                      <div className="flex-1 min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-black text-sm">{tx.type}</p>
+                          <p className="text-sm font-black">{tx.type}</p>
                           <Badge variant="outline" className="text-[10px] font-mono">#{tx.id}</Badge>
                         </div>
-                        <p className="text-[10px] text-muted-foreground font-mono">
+                        <p className="text-[10px] font-mono text-muted-foreground">
                           {date.toLocaleDateString()} at {date.toLocaleTimeString()}
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-black font-mono text-lg">₹{tx.total_amount.toLocaleString()}</p>
-                        <div className="flex items-center gap-2 justify-end">
+                        <p className="font-mono text-lg font-black">₹{tx.total_amount.toLocaleString()}</p>
+                        <div className="flex items-center justify-end gap-2">
                           <Badge variant={tx.payment_mode === "CASH" ? "default" : "secondary"} className="text-[9px] font-bold">
                             {tx.payment_mode}
                           </Badge>
@@ -173,6 +202,15 @@ export default function StakeholderDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <BillOverlay
+        transactionId={selectedTransactionId}
+        onClose={() => {
+          setSelectedTransactionId(null);
+          setSelectedBillData(null);
+        }}
+        initialData={selectedBillData}
+      />
     </div>
   );
 }

@@ -8,9 +8,9 @@ from typing import List, Optional
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 # Define the local directory where images will be physically saved
-IMAGE_UPLOAD_DIR = "uploaded_images"
-if not os.path.exists(IMAGE_UPLOAD_DIR):
-    os.makedirs(IMAGE_UPLOAD_DIR)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+IMAGE_UPLOAD_DIR = os.path.normpath(os.path.join(BASE_DIR, "..", "uploaded_images"))
+os.makedirs(IMAGE_UPLOAD_DIR, exist_ok=True)
 
 
 def _save_uploaded_image(file: UploadFile, model_no: str) -> str:
@@ -21,7 +21,7 @@ def _save_uploaded_image(file: UploadFile, model_no: str) -> str:
     with open(saved_image_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    return f"/{saved_image_path.replace('\\', '/')}"
+    return f"/uploaded_images/{safe_filename}"
 
 
 # --- CATEGORY MANAGEMENT ---

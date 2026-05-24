@@ -22,13 +22,15 @@ app.add_middleware(
     allow_headers=["*"], # Allows headers like Authorization, Content-Type, etc.
 )
 
-# Create the folder locally if it doesn't exist yet so mounting doesn't throw errors
-IMAGE_UPLOAD_DIR = "uploaded_images"
-if not os.path.exists(IMAGE_UPLOAD_DIR):
-    os.makedirs(IMAGE_UPLOAD_DIR)
+# Serve uploaded product images
+_IMAGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploaded_images")
+os.makedirs(_IMAGES_DIR, exist_ok=True)
+app.mount("/uploaded_images", StaticFiles(directory=_IMAGES_DIR), name="uploaded_images")
 
-# Mount local image folder to serve static image files to your frontend table/view components
-app.mount("/uploaded_images", StaticFiles(directory=IMAGE_UPLOAD_DIR), name="uploaded_images")
+# Serve uploaded purchase bills
+_BILLS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploaded_bills")
+os.makedirs(_BILLS_DIR, exist_ok=True)
+app.mount("/uploaded_bills", StaticFiles(directory=_BILLS_DIR), name="uploaded_bills")
 
 # Register all logic modules
 app.include_router(inventory.router)

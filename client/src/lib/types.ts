@@ -56,13 +56,16 @@ export interface SearchTransaction {
   payment_mode: "CASH" | "ONLINE" | string;
   cash_flow_direction?: "IN" | "OUT" | string | null;
   created_at: string;
+  items?: BillOverlayItem[];
 }
 
 export interface PurchaseBillItem {
   product_id: number;
   product_name: string;
+  model_no?: string | null;
   quantity: number;
   unit_price: number;
+  total_price?: number;
 }
 
 export interface SearchPurchaseBill {
@@ -119,6 +122,13 @@ export interface Transaction {
   paid_amount: number;
   payment_mode: "CASH" | "ONLINE";
   created_at: string;
+  items?: Array<{
+    product_id: number;
+    product_name?: string | null;
+    quantity: number;
+    unit_price: number;
+    total_price?: number;
+  }>;
 }
 
 export interface TransactionItem {
@@ -128,6 +138,7 @@ export interface TransactionItem {
   quantity: number;
   unit_price: number;
   cost_price_at_sale: number;
+  product_name?: string | null;
 }
 
 // --- SALE PAYLOAD (matches schemas.py SaleCreate) ---
@@ -217,6 +228,33 @@ export interface StakeholderLaserFocus {
 export interface ProductLaserFocus {
   details: Product;
   movement_history: StockLog[];
+}
+
+export interface ProductDetailResponse {
+  details: Product;
+  movement_history: StockLog[];
+}
+
+export interface BillOverlayItem {
+  product_id: number;
+  product_name: string;
+  model_no?: string | null;
+  quantity: number;
+  unit_price: number;
+  total_price?: number;
+}
+
+export interface BillOverlayData {
+  id: number;
+  type: string;
+  date: string;
+  stakeholder_name: string;
+  total_amount: number;
+  paid_amount: number;
+  payment_mode: string;
+  description?: string | null;
+  file_path?: string | null;
+  items: BillOverlayItem[];
 }
 
 export interface SystemBalance {

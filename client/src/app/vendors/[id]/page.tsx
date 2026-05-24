@@ -1,13 +1,15 @@
 "use client";
 
-import { use } from "react";
-import { ArrowLeft, Phone, User, Wallet, Loader2, RefreshCw, ArrowUpRight, ArrowDownLeft, DownloadCloud } from "lucide-react";
+import { use, useState } from "react";
+import { ArrowLeft, Phone, User, Wallet, Loader2, RefreshCw, ArrowUpRight, ArrowDownLeft } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 import { Separator } from "../../../components/ui/separator";
+import BillOverlay from "../../../components/BillOverlay";
 import { useLaserFocus } from "../../../hooks/useLaserFocus";
+import type { BillOverlayData, SearchPurchaseBill, SearchTransaction } from "../../../lib/types";
 
 export default function StakeholderDetailPage({
   params,
@@ -20,6 +22,52 @@ export default function StakeholderDetailPage({
     type: "vendor",
     id,
   });
+  const [selectedTransactionId, setSelectedTransactionId] = useState<number | null>(null);
+  const [selectedBillData, setSelectedBillData] = useState<BillOverlayData | null>(null);
+
+  const openTransactionOverlay = (tx: SearchTransaction) => {
+    setSelectedTransactionId(tx.id);
+    setSelectedBillData({
+      id: tx.id,
+      type: tx.type,
+      date: tx.created_at,
+      stakeholder_name: profile.name,
+      total_amount: tx.total_amount,
+      paid_amount: tx.paid_amount,
+      payment_mode: tx.payment_mode,
+      description: `Vendor transaction for ${profile.name}`,
+      items: (tx.items || []).map((item) => ({
+        product_id: item.product_id,
+        product_name: item.product_name || `Product ${item.product_id}`,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price ?? item.quantity * item.unit_price,
+      })),
+    });
+  };
+
+  const openBillOverlay = (bill: SearchPurchaseBill) => {
+    setSelectedTransactionId(bill.id);
+    setSelectedBillData({
+      id: bill.id,
+      type: "PURCHASE",
+      date: bill.date || new Date().toISOString(),
+      stakeholder_name: bill.vendor_name || profile.name,
+      total_amount: bill.total_amount,
+      paid_amount: bill.total_amount,
+      payment_mode: "N/A",
+      description: `Stored bill ${bill.bill_no}`,
+      file_path: bill.file_path,
+      items: bill.items.map((item) => ({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        model_no: item.model_no,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price ?? item.quantity * item.unit_price,
+      })),
+    });
+  };
 
   if (loading) {
     return (
@@ -137,26 +185,30 @@ export default function StakeholderDetailPage({
                     const date = new Date(tx.created_at);
 
                     return (
-                      <div key={tx.id} className="flex items-center gap-4 p-4 rounded-xl border hover:bg-muted/30 transition-colors">
-                        <div className={`p-2 rounded-lg ${isSale ? "bg-success/10" : isPurchase ? "bg-warning/10" : "bg-muted"}`}>
+                      <div
+                        key={tx.id}
+                        className="flex cursor-pointer items-center gap-4 rounded-xl border p-4 transition-colors hover:bg-muted/30"
+                        onClick={() => openTransactionOverlay(tx)}
+                      >
+                        <div className={`rounded-lg p-2 ${isSale ? "bg-success/10" : isPurchase ? "bg-warning/10" : "bg-muted"}`}>
                           {isSale ? (
                             <ArrowUpRight className="h-5 w-5 text-success" />
                           ) : (
                             <ArrowDownLeft className="h-5 w-5 text-warning" />
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="font-black text-sm">{tx.type}</p>
+                            <p className="text-sm font-black">{tx.type}</p>
                             <Badge variant="outline" className="text-[10px] font-mono">#{tx.id}</Badge>
                           </div>
-                          <p className="text-[10px] text-muted-foreground font-mono">
+                          <p className="text-[10px] font-mono text-muted-foreground">
                             {date.toLocaleDateString()} at {date.toLocaleTimeString()}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-black font-mono text-lg">₹{tx.total_amount.toLocaleString()}</p>
-                          <div className="flex items-center gap-2 justify-end">
+                          <p className="font-mono text-lg font-black">₹{tx.total_amount.toLocaleString()}</p>
+                          <div className="flex items-center justify-end gap-2">
                             <Badge variant={tx.payment_mode === "CASH" ? "default" : "secondary"} className="text-[9px] font-bold">
                               {tx.payment_mode}
                             </Badge>
@@ -187,19 +239,23 @@ export default function StakeholderDetailPage({
               ) : (
                 <div className="space-y-3">
                   {digital_bills.map((bill) => (
-                    <div key={bill.id} className="rounded-xl border p-4 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-                      <div className="space-y-2 flex-1">
+                    <div
+                      key={bill.id}
+                      className="flex cursor-pointer flex-col gap-4 rounded-xl border p-4 transition-colors hover:bg-muted/30 md:flex-row md:items-start md:justify-between"
+                      onClick={() => openBillOverlay(bill)}
+                    >
+                      <div className="flex-1 space-y-2">
                         <p className="font-bold">Bill {bill.bill_no}</p>
                         <p className="text-[10px] text-muted-foreground">Amount: ₹{bill.total_amount.toLocaleString()}</p>
                         <p className="text-[10px] text-muted-foreground">Date: {bill.date ? new Date(bill.date).toLocaleDateString() : "Unknown"}</p>
                         {bill.items?.length ? (
-                          <div className="mt-3 rounded-xl bg-muted/50 p-3 border border-border">
-                            <p className="text-[10px] uppercase font-black tracking-wide text-muted-foreground">Purchased Items</p>
+                          <div className="mt-3 rounded-xl border border-border bg-muted/50 p-3">
+                            <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">Purchased Items</p>
                             <div className="mt-2 space-y-2">
                               {bill.items.map((item) => (
-                                <div key={`${bill.id}-${item.product_id}`} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-border p-2">
+                                <div key={`${bill.id}-${item.product_id}`} className="flex flex-col gap-2 rounded-lg border border-border p-2 sm:flex-row sm:items-center sm:justify-between">
                                   <div>
-                                    <p className="font-bold text-sm text-primary">{item.product_name}</p>
+                                    <p className="text-sm font-bold text-primary">{item.product_name}</p>
                                     <p className="text-[10px] text-muted-foreground">
                                       Qty: {item.quantity} • Unit: ₹{item.unit_price.toLocaleString()}
                                     </p>
@@ -207,6 +263,7 @@ export default function StakeholderDetailPage({
                                   <Link
                                     href={`/inventory?search=${encodeURIComponent(item.product_name)}`}
                                     className="text-[10px] font-bold text-primary underline"
+                                    onClick={(event) => event.stopPropagation()}
                                   >
                                     View item history
                                   </Link>
@@ -216,22 +273,6 @@ export default function StakeholderDetailPage({
                           </div>
                         ) : null}
                       </div>
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        {bill.file_path ? (
-                          <a
-                            href={`${process.env.NEXT_PUBLIC_API_URL || ""}/purchases/${bill.id}/download`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center justify-center rounded-xl border border-primary px-4 py-2 text-sm font-bold text-primary transition hover:bg-primary/10"
-                          >
-                            <DownloadCloud className="mr-2 h-4 w-4" /> Download Bill
-                          </a>
-                        ) : (
-                          <span className="inline-flex items-center rounded-xl border border-muted px-4 py-2 text-sm text-muted-foreground">
-                            No digital copy
-                          </span>
-                        )}
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -240,6 +281,15 @@ export default function StakeholderDetailPage({
           </Card>
         </div>
       </div>
+
+      <BillOverlay
+        transactionId={selectedTransactionId}
+        onClose={() => {
+          setSelectedTransactionId(null);
+          setSelectedBillData(null);
+        }}
+        initialData={selectedBillData}
+      />
     </div>
   );
 }

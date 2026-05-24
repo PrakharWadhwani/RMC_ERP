@@ -11,8 +11,9 @@ import { Separator } from "../../components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { Badge } from "../../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import BillOverlay from "../../components/BillOverlay";
 import api from "../../lib/api";
-import type { DailySummary, ProfitReportResponse, SystemBalance } from "../../lib/types";
+import type { BillOverlayData, DailySummary, ProfitReportResponse, SystemBalance } from "../../lib/types";
 
 export default function FinancesPage() {
   const [summary, setSummary] = useState<DailySummary | null>(null);
@@ -21,6 +22,8 @@ export default function FinancesPage() {
   const [monthlyReport, setMonthlyReport] = useState<ProfitReportResponse | null>(null);
   const [yearlyReport, setYearlyReport] = useState<ProfitReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<number | null>(null);
+  const [selectedBillData, setSelectedBillData] = useState<BillOverlayData | null>(null);
 
   // Edit Balances
   const [editingBalances, setEditingBalances] = useState(false);
@@ -98,6 +101,22 @@ export default function FinancesPage() {
   };
 
   const fmt = (v: number) => `₹${Math.abs(v).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+
+  const openLedgerOverlay = (entry: any) => {
+    setSelectedTransactionId(entry.id);
+    setSelectedBillData({
+      id: entry.id,
+      type: entry.type,
+      date: entry.date,
+      stakeholder_name: entry.description || "Ledger Entry",
+      total_amount: Number(entry.amount),
+      paid_amount: Number(entry.amount),
+      payment_mode: entry.mode || "N/A",
+      description: entry.description,
+      items: [],
+    });
+  };
+
   const MetricSkeleton = () => (
     <CardContent className="p-6 space-y-3"><Skeleton className="h-4 w-24" /><Skeleton className="h-10 w-32" /></CardContent>
   );
@@ -300,7 +319,11 @@ export default function FinancesPage() {
                       </TableHeader>
                       <TableBody>
                         {ledger.map(entry => (
-                          <TableRow key={entry.id}>
+                          <TableRow
+                            key={entry.id}
+                            className="cursor-pointer hover:bg-muted/20"
+                            onClick={() => openLedgerOverlay(entry)}
+                          >
                             <TableCell className="text-xs font-mono">{new Date(entry.date).toLocaleDateString()}</TableCell>
                             <TableCell>
                               <Badge variant={entry.type === "SALE" ? "default" : entry.type === "PURCHASE" ? "secondary" : "destructive"} className="text-[9px]">
@@ -363,6 +386,15 @@ export default function FinancesPage() {
           </form>
         </CardContent>
       </Card>
+
+      <BillOverlay
+        transactionId={selectedTransactionId}
+        onClose={() => {
+          setSelectedTransactionId(null);
+          setSelectedBillData(null);
+        }}
+        initialData={selectedBillData}
+      />
     </div>
   );
 }

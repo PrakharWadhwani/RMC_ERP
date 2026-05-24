@@ -13,9 +13,9 @@ import models, database, auth, schemas
 
 router = APIRouter(prefix="/purchases", tags=["purchases"])
 
-UPLOAD_DIR = "uploaded_bills"
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOAD_DIR = os.path.normpath(os.path.join(BASE_DIR, "..", "uploaded_bills"))
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 @router.post("/")
 def make_bulk_purchase(
@@ -60,7 +60,7 @@ def make_bulk_purchase(
         vendor_id=vendor_id,
         bill_no=bill_no,
         total_amount=total_amount,
-        file_path=saved_path,
+        file_path=f"/uploaded_bills/{file_name}" if file else None,
         transaction_id=new_transaction.id
     )
     db.add(new_bill)
@@ -137,11 +137,8 @@ def get_all_purchase_bills(
                     "total_price": item.quantity * item.unit_price
                 })
 
-        # Remap system local path string to a readable web image URL structure
-        web_file_path = None
-        if bill.file_path:
-            filename = os.path.basename(bill.file_path)
-            web_file_path = f"/static/bills/{filename}"
+        # Use the clean uploaded_bills URL already stored in the bill record
+        web_file_path = bill.file_path  # already stored as clean /uploaded_bills/filename
 
         response_list.append({
             "id": bill.id,
@@ -167,8 +164,9 @@ def download_purchase_bill(
     if not bill or not bill.file_path:
         raise HTTPException(status_code=404, detail="Bill file not found")
 
-    path = os.path.normpath(bill.file_path)
-    if not os.path.exists(path):
+    filename = os.path.basename(bill.file_path)
+    abs_path = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(abs_path):
         raise HTTPException(status_code=404, detail="Uploaded bill file is missing")
 
-    return FileResponse(path, media_type="application/octet-stream", filename=os.path.basename(path))
+    return FileResponse(abs_path, media_type="application/octet-stream", filename=filename)

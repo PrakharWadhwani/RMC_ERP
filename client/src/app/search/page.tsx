@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Users, FileText, Activity, DownloadCloud, Eye } from "lucide-react";
+import { Users, FileText, Activity } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
+import BillOverlay from "../../components/BillOverlay";
 import api from "../../lib/api";
-import type { SearchResponse } from "../../lib/types";
+import type { BillOverlayData, SearchPurchaseBill, SearchResponse, SearchTransaction } from "../../lib/types";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -17,6 +18,8 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<number | null>(null);
+  const [selectedBillData, setSelectedBillData] = useState<BillOverlayData | null>(null);
 
   const handleSearch = async () => {
     if (!query.trim()) {
@@ -45,6 +48,44 @@ export default function SearchPage() {
 
   const openLink = (path: string) => {
     window.location.href = path;
+  };
+
+  const openTransactionOverlay = (txn: SearchTransaction) => {
+    setSelectedTransactionId(txn.id);
+    setSelectedBillData({
+      id: txn.id,
+      type: txn.type,
+      date: txn.created_at,
+      stakeholder_name: txn.stakeholder_name || "Walk-in Customer",
+      total_amount: txn.total_amount,
+      paid_amount: txn.paid_amount,
+      payment_mode: txn.payment_mode,
+      description: `Global search transaction ${txn.type}`,
+      items: [],
+    });
+  };
+
+  const openBillOverlay = (bill: SearchPurchaseBill) => {
+    setSelectedTransactionId(bill.id);
+    setSelectedBillData({
+      id: bill.id,
+      type: "PURCHASE",
+      date: bill.date || new Date().toISOString(),
+      stakeholder_name: bill.vendor_name || "Unknown Vendor",
+      total_amount: bill.total_amount,
+      paid_amount: bill.total_amount,
+      payment_mode: "N/A",
+      description: `Purchase bill ${bill.bill_no}`,
+      file_path: bill.file_path,
+      items: bill.items.map((item) => ({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        model_no: item.model_no,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price ?? item.quantity * item.unit_price,
+      })),
+    });
   };
 
   return (
@@ -135,7 +176,7 @@ export default function SearchPage() {
                     </TableHeader>
                     <TableBody>
                       {results.transactions.map((txn) => (
-                        <TableRow key={txn.id}>
+                        <TableRow key={txn.id} className="cursor-pointer hover:bg-muted/20" onClick={() => openTransactionOverlay(txn)}>
                           <TableCell className="text-xs font-mono">{new Date(txn.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="text-xs">{txn.type}</TableCell>
                           <TableCell className="text-xs">{txn.stakeholder_name || "Walk-in"}</TableCell>
@@ -161,93 +202,71 @@ export default function SearchPage() {
             <CardContent>
               {results?.purchase_bills.length ? (
                 <div className="space-y-4">
-                  {results.purchase_bills.map((bill) => {
-                    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "";
-                    const fullFileUrl = bill.file_path ? `${baseUrl}${bill.file_path}` : null;
-
-                    return (
-                      <div key={bill.id} className="rounded-xl border p-5 flex flex-col gap-4 bg-zinc-950/20">
-                        {/* Top Metadata Header Row */}
-                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 border-b pb-3 border-zinc-800/50">
-                          <div>
-                            <h3 className="font-black text-lg tracking-tight uppercase text-white">Bill {bill.bill_no}</h3>
-                            <div className="text-[11px] font-bold uppercase text-muted-foreground space-y-0.5 mt-1 opacity-75">
-                              <p>Vendor: <span className="text-white">{bill.vendor_name}</span></p>
-                              <p>Total Amount: <span className="text-white font-mono">₹{bill.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></p>
-                              <p>Date Added: <span className="text-white font-mono">{bill.date ? new Date(bill.date).toLocaleDateString() : "Unknown"}</span></p>
-                            </div>
-                          </div>
-
-                          {/* Interactive Document View / Download Actions */}
-                          <div className="flex flex-wrap gap-2 items-center">
-                            <Link href={`/vendors/${bill.vendor_id}`} className="inline-flex items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-bold text-zinc-300 transition hover:bg-zinc-800">
-                              View Vendor
-                            </Link>
-                            {fullFileUrl ? (
-                              <>
-                                <a
-                                  href={fullFileUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center justify-center rounded-lg bg-primary/10 border border-primary/30 px-3 py-1.5 text-xs font-bold text-primary transition hover:bg-primary/20"
-                                >
-                                  <Eye className="mr-1.5 h-3.5 w-3.5" /> View Copy
-                                </a>
-                                <a
-                                  href={`${baseUrl}/purchases/${bill.id}/download`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center justify-center rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-zinc-700"
-                                >
-                                  <DownloadCloud className="mr-1.5 h-3.5 w-3.5" /> Download
-                                </a>
-                              </>
-                            ) : (
-                              <span className="inline-flex items-center rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-1.5 text-xs text-zinc-500 font-bold">
-                                No file attached
-                              </span>
-                            )}
+                  {results.purchase_bills.map((bill) => (
+                    <div
+                      key={bill.id}
+                      className="flex cursor-pointer flex-col gap-4 rounded-xl border bg-zinc-950/20 p-5"
+                      onClick={() => openBillOverlay(bill)}
+                    >
+                      {/* Top Metadata Header Row */}
+                      <div className="flex flex-col gap-4 border-b border-zinc-800/50 pb-3 md:flex-row md:items-start md:justify-between">
+                        <div>
+                          <h3 className="font-black text-lg tracking-tight uppercase text-white">Bill {bill.bill_no}</h3>
+                          <div className="mt-1 space-y-0.5 text-[11px] font-bold uppercase text-muted-foreground opacity-75">
+                            <p>Vendor: <span className="text-white">{bill.vendor_name}</span></p>
+                            <p>Total Amount: <span className="text-white font-mono">₹{bill.total_amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span></p>
+                            <p>Date Added: <span className="text-white font-mono">{bill.date ? new Date(bill.date).toLocaleDateString() : "Unknown"}</span></p>
                           </div>
                         </div>
 
-                        {/* Middle Line Items Inventory Grid Segment */}
-                        {bill.items && bill.items.length > 0 ? (
-                          <div className="rounded-xl bg-zinc-900/40 p-4 border border-zinc-800/60 max-w-4xl">
-                            <p className="text-[10px] uppercase font-black tracking-wider text-muted-foreground/60 mb-2.5">Purchased Items Breakdown</p>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {bill.items.map((item: any, idx: number) => {
-                                const resolvedName = item.product_name || 
-                                  `${item.brand ? item.brand + " " : ""}${item.model_name || "Product"} (${item.model_no || "N/A"})`;
-                                return (
-                                  <div key={`${bill.id}-item-${idx}`} className="flex items-center justify-between gap-4 rounded-lg bg-zinc-950/50 p-3 border border-zinc-800/40">
-                                    <div className="space-y-0.5">
-                                      <p className="font-bold text-xs text-zinc-200 tracking-tight">{resolvedName}</p>
-                                      <p className="text-[10px] font-medium text-zinc-500 font-mono">
-                                        Qty: {item.quantity} × ₹{item.unit_price.toLocaleString("en-IN")}
-                                      </p>
-                                    </div>
-                                    <div className="text-right flex flex-col items-end gap-1">
-                                      <span className="text-xs font-mono font-bold text-zinc-400">
-                                        ₹{(item.total_price || (item.quantity * item.unit_price)).toLocaleString("en-IN")}
-                                      </span>
-                                      <Link
-                                        href={`/inventory?search=${encodeURIComponent(item.model_no || item.product_name || "")}`}
-                                        className="text-[9px] font-bold text-primary/80 hover:text-primary transition underline uppercase tracking-wide"
-                                      >
-                                        Track Item
-                                      </Link>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-zinc-500 italic px-1">No separate itemized logs registered under this manual total record.</p>
-                        )}
+                        <Link
+                          href={`/vendors/${bill.vendor_id}`}
+                          className="inline-flex items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-bold text-zinc-300 transition hover:bg-zinc-800"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          View Vendor
+                        </Link>
                       </div>
-                    );
-                  })}
+
+                      {/* Middle Line Items Inventory Grid Segment */}
+                      {bill.items && bill.items.length > 0 ? (
+                        <div className="max-w-4xl rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4">
+                          <p className="mb-2.5 text-[10px] font-black uppercase tracking-wider text-muted-foreground/60">Purchased Items Breakdown</p>
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            {bill.items.map((item: any, idx: number) => {
+                              const resolvedName = item.product_name ||
+                                `${item.brand ? item.brand + " " : ""}${item.model_name || "Product"} (${item.model_no || "N/A"})`;
+
+                              return (
+                                <div key={`${bill.id}-item-${idx}`} className="flex items-center justify-between gap-4 rounded-lg border border-zinc-800/40 bg-zinc-950/50 p-3">
+                                  <div className="space-y-0.5">
+                                    <p className="text-xs font-bold tracking-tight text-zinc-200">{resolvedName}</p>
+                                    <p className="font-mono text-[10px] font-medium text-zinc-500">
+                                      Qty: {item.quantity} × ₹{item.unit_price.toLocaleString("en-IN")}
+                                    </p>
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1 text-right">
+                                    <span className="font-mono text-xs font-bold text-zinc-400">
+                                      ₹{(item.total_price || (item.quantity * item.unit_price)).toLocaleString("en-IN")}
+                                    </span>
+                                    <Link
+                                      href={`/inventory?search=${encodeURIComponent(item.model_no || item.product_name || "")}`}
+                                      className="text-[9px] font-bold uppercase tracking-wide text-primary/80 underline transition hover:text-primary"
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      Track Item
+                                    </Link>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="px-1 text-xs italic text-zinc-500">No separate itemized logs registered under this manual total record.</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="text-sm text-muted-foreground">No matching purchase bills found.</p>
@@ -256,6 +275,15 @@ export default function SearchPage() {
           </Card>
         </div>
       )}
+
+      <BillOverlay
+        transactionId={selectedTransactionId}
+        onClose={() => {
+          setSelectedTransactionId(null);
+          setSelectedBillData(null);
+        }}
+        initialData={selectedBillData}
+      />
     </div>
   );
 }
