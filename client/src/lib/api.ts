@@ -22,6 +22,7 @@ const api = axios.create({
   baseURL: getApiBaseUrl(),
   headers: {
     'Content-Type': 'application/json',
+    'localtonet-skip-warning': 'true', // Custom header to bypass local network warnings
   },
 });
 
