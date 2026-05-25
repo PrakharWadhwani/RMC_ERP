@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
@@ -13,14 +13,25 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="RMC ERP - Master")
 
-# Global CORS to allow local & external origins (Handles PUT/DELETE Preflights seamlessly)
+# Standard Global CORS configuration
+origins = [
+    "https://rmc-erp.vercel.app",  # Your production Vercel frontend
+    "http://localhost:3000",       # Local development frontend if you use it
+    "http://127.0.0.1:3000"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allows both localhost:3000 and production links
+    allow_origins=origins,          # FIXED: Swapped "*" for explicit trusted domains
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], # Explicitly names standard methods
-    allow_headers=["*"], # Allows headers like Authorization, Content-Type, etc.
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], # Explicitly call out methods
+    allow_headers=["Content-Type", "Authorization", "Accept", "Origin"], # Standard web headers
+    expose_headers=["*"] 
 )
+
+@app.get("/")
+def health_check():
+    return {"status": "RMC ERP Backend is Running"}
 
 # Serve uploaded product images
 _IMAGES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "uploaded_images")

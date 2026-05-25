@@ -18,22 +18,20 @@ export const resolveAssetUrl = (assetPath?: string | null) => {
   return `${getApiBaseUrl()}${normalizedPath}`;
 };
 
+// FIX: Do not bundle a global 'Content-Type' header directly inside the root instance config
 const api = axios.create({
   baseURL: getApiBaseUrl(),
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
-// Request Interceptor: Attaches both the authentication token and the tunnel bypass header securely
+// Request Interceptor: Injects context dynamically based on request type
 api.interceptors.request.use((config) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  
-  // Rebuild the headers container safely to retain our custom bypass configurations
   const headers = AxiosHeaders.from(config.headers);
   
-  // Explicitly inject the Localtonet bypass command so the server skips the warning prompt
-  headers.set('localtonet-skip-warning', 'true');
+  // Only apply JSON definitions if we are sending data down the pipe (POST/PUT/PATCH)
+  if (config.method && ['post', 'put', 'patch'].includes(config.method.toLowerCase())) {
+    headers.set('Content-Type', 'application/json');
+  }
   
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
@@ -43,7 +41,6 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response Interceptor: Automatically handles expired token configurations and clears user sessions
 api.interceptors.response.use(
   (response) => response,
   (error) => {
