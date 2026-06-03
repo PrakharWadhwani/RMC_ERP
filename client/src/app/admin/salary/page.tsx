@@ -481,7 +481,7 @@ export default function AdminSalaryPage() {
                     <Button
                       size="sm"
                       onClick={() => setAddDialogOpen(true)}
-                      className="bg-primary hover:bg-primary/80 text-white font-black uppercase text-[10px] h-9"
+                      className="bg-blue-600 hover:bg-blue-500 text-white font-black uppercase text-[10px] h-9 shadow-lg shadow-blue-900/20"
                     >
                       <Plus className="h-3.5 w-3.5 mr-1" /> Add Employee
                     </Button>
