@@ -1,7 +1,9 @@
 import axios, { AxiosHeaders } from 'axios';
 
-export const getApiBaseUrl = () => 
-  (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+// Hardcoded for Electron desktop mode — always target the local FastAPI backend.
+// The env variable is checked first so Vercel/cloud deploys can still override.
+export const getApiBaseUrl = () =>
+  (process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 
 export const resolveAssetUrl = (assetPath?: string | null) => {
   if (!assetPath) {
@@ -29,8 +31,11 @@ api.interceptors.request.use((config) => {
   const headers = AxiosHeaders.from(config.headers);
   
   // Only apply JSON definitions if we are sending data down the pipe (POST/PUT/PATCH)
+  // and a specific Content-Type wasn't already provided by the request.
   if (config.method && ['post', 'put', 'patch'].includes(config.method.toLowerCase())) {
-    headers.set('Content-Type', 'application/json');
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
   }
   
   if (token) {

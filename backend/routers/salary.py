@@ -8,17 +8,22 @@ from pydantic import BaseModel
 
 router = APIRouter(prefix="/salary", tags=["salary"])
 
+# ============================================================================
+# Local response models (kept here to avoid circular imports)
+# ============================================================================
+
 class UserSalarySummary(BaseModel):
-    user_id: int
-    username: str
+    employee_id: int
+    employee_name: str
+    role: str
     base_salary: float
     total_advances: float
     net_payable: float
 
 class AdminAdvanceResponse(BaseModel):
     id: int
-    user_id: int
-    username: str
+    employee_id: Optional[int] = None
+    employee_name: str
     amount: float
     month: int
     year: int
@@ -28,78 +33,230 @@ class AdminAdvanceResponse(BaseModel):
     class Config:
         from_attributes = True
 
-@router.get("/my-salary")
-def get_my_salary(
+
+# ============================================================================
+# EMPLOYEE CRUD — Admin-controlled
+# ============================================================================
+
+@router.post("/admin/employees", response_model=schemas.EmployeeResponse)
+def create_employee(
+    data: schemas.EmployeeCreate,
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    """
-    Returns the current logged-in user's salary info and history of advances
-    """
-    advances = db.query(models.SalaryAdvance).filter(
-        models.SalaryAdvance.user_id == current_user.id
-    ).order_by(models.SalaryAdvance.timestamp.desc()).all()
+    """Admin creates a new employee."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
+
+    employee = models.Employee(
+        name=data.name,
+        phone_no=data.phone_no,
+        role=data.role,
+        base_salary=data.base_salary,
+        user_id=data.user_id,
+    )
+    db.add(employee)
+    db.commit()
+    db.refresh(employee)
+
+    # Build response with optional linked username
+    linked_username = None
+    if employee.user_id:
+        linked_user = db.query(models.User).filter(models.User.id == employee.user_id).first()
+        if linked_user:
+            linked_username = linked_user.username
+
+    return schemas.EmployeeResponse(
+        id=employee.id,
+        name=employee.name,
+        phone_no=employee.phone_no,
+        role=employee.role,
+        base_salary=employee.base_salary,
+        is_active=employee.is_active,
+        user_id=employee.user_id,
+        created_at=employee.created_at,
+        linked_username=linked_username,
+    )
+
+
+@router.get("/admin/employees", response_model=List[schemas.EmployeeResponse])
+def list_employees(
+    include_inactive: bool = False,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """List all employees. Active only by default."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
+
+    query = db.query(models.Employee)
+    if not include_inactive:
+        query = query.filter(models.Employee.is_active == True)
     
+    employees = query.order_by(models.Employee.name).all()
+    result = []
+    for emp in employees:
+        linked_username = None
+        if emp.user_id:
+            linked_user = db.query(models.User).filter(models.User.id == emp.user_id).first()
+            if linked_user:
+                linked_username = linked_user.username
+        result.append(schemas.EmployeeResponse(
+            id=emp.id,
+            name=emp.name,
+            phone_no=emp.phone_no,
+            role=emp.role,
+            base_salary=emp.base_salary,
+            is_active=emp.is_active,
+            user_id=emp.user_id,
+            created_at=emp.created_at,
+            linked_username=linked_username,
+        ))
+    return result
+
+
+@router.put("/admin/employees/{employee_id}", response_model=schemas.EmployeeResponse)
+def update_employee(
+    employee_id: int,
+    data: schemas.EmployeeUpdate,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Update employee details. If base_salary changes, a SalaryLog is created."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
+
+    employee = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    # Track salary change for audit log
+    if data.base_salary is not None and data.base_salary != employee.base_salary:
+        salary_log = models.SalaryLog(
+            employee_id=employee.id,
+            old_salary=employee.base_salary,
+            new_salary=data.base_salary,
+            changed_by=current_user.username,
+        )
+        db.add(salary_log)
+        employee.base_salary = data.base_salary
+
+    if data.name is not None:
+        employee.name = data.name
+    if data.phone_no is not None:
+        employee.phone_no = data.phone_no
+    if data.role is not None:
+        employee.role = data.role
+    if data.is_active is not None:
+        employee.is_active = data.is_active
+    if data.user_id is not None:
+        employee.user_id = data.user_id
+
+    db.commit()
+    db.refresh(employee)
+
+    linked_username = None
+    if employee.user_id:
+        linked_user = db.query(models.User).filter(models.User.id == employee.user_id).first()
+        if linked_user:
+            linked_username = linked_user.username
+
+    return schemas.EmployeeResponse(
+        id=employee.id,
+        name=employee.name,
+        phone_no=employee.phone_no,
+        role=employee.role,
+        base_salary=employee.base_salary,
+        is_active=employee.is_active,
+        user_id=employee.user_id,
+        created_at=employee.created_at,
+        linked_username=linked_username,
+    )
+
+
+@router.put("/admin/update-salary/{employee_id}")
+def update_salary(
+    employee_id: int,
+    data: schemas.SalaryUpdateRequest,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Dedicated salary update endpoint with full audit trail."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
+
+    employee = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    if data.new_salary < 0:
+        raise HTTPException(status_code=400, detail="Salary cannot be negative.")
+
+    old_salary = employee.base_salary
+
+    # Create audit log
+    salary_log = models.SalaryLog(
+        employee_id=employee.id,
+        old_salary=old_salary,
+        new_salary=data.new_salary,
+        changed_by=current_user.username,
+    )
+    db.add(salary_log)
+
+    employee.base_salary = data.new_salary
+    db.commit()
+
     return {
-        "base_salary": current_user.base_salary,
-        "advances": [
-            {
-                "id": adv.id,
-                "amount": adv.amount,
-                "month": adv.month,
-                "year": adv.year,
-                "approved_by_admin": adv.approved_by_admin,
-                "timestamp": adv.timestamp
-            } for adv in advances
-        ]
+        "message": f"Salary updated from ₹{old_salary} to ₹{data.new_salary}",
+        "employee_id": employee.id,
+        "old_salary": old_salary,
+        "new_salary": data.new_salary,
     }
 
-@router.post("/advance", response_model=schemas.SalaryAdvanceResponse)
-def request_advance(
-    request_data: schemas.SalaryAdvanceCreate,
+
+@router.get("/admin/salary-history/{employee_id}", response_model=List[schemas.SalaryLogResponse])
+def get_salary_history(
+    employee_id: int,
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    """
-    Create a salary advance request for the current user
-    """
-    if current_user.status != "APPROVED":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Your account is not approved yet. Cannot request advance."
-        )
+    """Get salary change history for a specific employee."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
 
-    # Check if request amount exceeds base salary
-    if request_data.amount > current_user.base_salary:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Requested advance amount (₹{request_data.amount}) cannot exceed base salary (₹{current_user.base_salary})."
-        )
-    
-    # Check if they already have a pending or approved advance for the same month and year
-    existing = db.query(models.SalaryAdvance).filter(
-        models.SalaryAdvance.user_id == current_user.id,
-        models.SalaryAdvance.month == request_data.month,
-        models.SalaryAdvance.year == request_data.year
-    ).first()
-    
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"You already have a salary advance entry for {request_data.month}/{request_data.year}."
-        )
-        
-    new_advance = models.SalaryAdvance(
-        user_id=current_user.id,
-        amount=request_data.amount,
-        month=request_data.month,
-        year=request_data.year,
-        approved_by_admin=False
-    )
-    db.add(new_advance)
+    employee = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    logs = db.query(models.SalaryLog).filter(
+        models.SalaryLog.employee_id == employee_id
+    ).order_by(models.SalaryLog.timestamp.desc()).all()
+
+    return logs
+
+
+@router.delete("/admin/employees/{employee_id}")
+def deactivate_employee(
+    employee_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Soft-deactivate an employee (does not delete data)."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
+
+    employee = db.query(models.Employee).filter(models.Employee.id == employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    employee.is_active = False
     db.commit()
-    db.refresh(new_advance)
-    return new_advance
+    return {"message": f"Employee '{employee.name}' has been deactivated."}
+
+
+# ============================================================================
+# SALARY OVERVIEW — Monthly Summary (from Employee table)
+# ============================================================================
 
 @router.get("/admin/summary", response_model=List[UserSalarySummary])
 def get_admin_salary_summary(
@@ -108,9 +265,7 @@ def get_admin_salary_summary(
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    """
-    Admin overview of all staff members, their base salaries, advances, and remaining pay
-    """
+    """Admin overview: all active employees, their base salaries, advances, and remaining pay."""
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
         
@@ -118,13 +273,13 @@ def get_admin_salary_summary(
     sel_month = month or now.month
     sel_year = year or now.year
     
-    users = db.query(models.User).filter(models.User.status == "APPROVED").all()
+    employees = db.query(models.Employee).filter(models.Employee.is_active == True).all()
     summary = []
     
-    for u in users:
-        # Sum approved advances for this user in selected month/year
+    for emp in employees:
+        # Sum approved advances for this employee in selected month/year
         total_advances = db.query(func.sum(models.SalaryAdvance.amount)).filter(
-            models.SalaryAdvance.user_id == u.id,
+            models.SalaryAdvance.employee_id == emp.id,
             models.SalaryAdvance.month == sel_month,
             models.SalaryAdvance.year == sel_year,
             models.SalaryAdvance.approved_by_admin == True
@@ -132,50 +287,114 @@ def get_admin_salary_summary(
         
         summary.append(
             UserSalarySummary(
-                user_id=u.id,
-                username=u.username,
-                base_salary=u.base_salary,
+                employee_id=emp.id,
+                employee_name=emp.name,
+                role=emp.role,
+                base_salary=emp.base_salary,
                 total_advances=total_advances,
-                net_payable=max(0.0, u.base_salary - total_advances)
+                net_payable=max(0.0, emp.base_salary - total_advances)
             )
         )
         
     return summary
 
-@router.get("/admin/requests", response_model=List[AdminAdvanceResponse])
-def get_pending_advances(
+
+# ============================================================================
+# ADVANCE MANAGEMENT — Admin creates and manages advances for employees
+# ============================================================================
+
+@router.post("/admin/advance", response_model=schemas.SalaryAdvanceResponse)
+def create_advance_for_employee(
+    data: schemas.SalaryAdvanceCreate,
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
-    """
-    List all pending and approved advance requests for admin tracking
-    """
+    """Admin creates a salary advance entry for an employee."""
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
+
+    employee = db.query(models.Employee).filter(models.Employee.id == data.employee_id).first()
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employee not found.")
+
+    if data.amount > employee.base_salary:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Advance amount (₹{data.amount}) cannot exceed base salary (₹{employee.base_salary})."
+        )
+
+    # Check duplicate for same month/year
+    existing = db.query(models.SalaryAdvance).filter(
+        models.SalaryAdvance.employee_id == data.employee_id,
+        models.SalaryAdvance.month == data.month,
+        models.SalaryAdvance.year == data.year,
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail=f"An advance entry already exists for {data.month}/{data.year}."
+        )
+
+    new_advance = models.SalaryAdvance(
+        employee_id=data.employee_id,
+        amount=data.amount,
+        month=data.month,
+        year=data.year,
+        approved_by_admin=False,
+    )
+    db.add(new_advance)
+    db.commit()
+    db.refresh(new_advance)
+    return new_advance
+
+
+@router.get("/admin/requests", response_model=List[AdminAdvanceResponse])
+def get_advance_requests(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """List all advance requests (pending + approved) across all employees."""
     if not current_user.is_admin:
         raise HTTPException(status_code=403, detail="Unauthorized: Admin access required.")
         
-    advances = db.query(models.SalaryAdvance).join(models.User).order_by(
+    advances = db.query(models.SalaryAdvance).order_by(
         models.SalaryAdvance.approved_by_admin.asc(),
         models.SalaryAdvance.timestamp.desc()
     ).all()
     
-    return [
-        AdminAdvanceResponse(
+    result = []
+    for adv in advances:
+        # Get employee name (prefer employee, fallback to user)
+        emp_name = "Unknown"
+        if adv.employee_id:
+            emp = db.query(models.Employee).filter(models.Employee.id == adv.employee_id).first()
+            if emp:
+                emp_name = emp.name
+        elif adv.user_id:
+            user = db.query(models.User).filter(models.User.id == adv.user_id).first()
+            if user:
+                emp_name = user.username
+
+        result.append(AdminAdvanceResponse(
             id=adv.id,
-            user_id=adv.user_id,
-            username=adv.user.username,
+            employee_id=adv.employee_id,
+            employee_name=emp_name,
             amount=adv.amount,
             month=adv.month,
             year=adv.year,
             approved_by_admin=adv.approved_by_admin,
-            timestamp=adv.timestamp
-        ) for adv in advances
-    ]
+            timestamp=adv.timestamp,
+        ))
+
+    return result
+
 
 @router.post("/admin/manage-advance/{advance_id}")
 def manage_advance(
     advance_id: int,
-    action: str, # "approve" or "reject"
-    payment_mode: Optional[str] = "CASH", # "CASH" or "ONLINE"
+    action: str,  # "approve" or "reject"
+    payment_mode: Optional[str] = "CASH",
     db: Session = Depends(database.get_db),
     current_user: models.User = Depends(auth.get_current_user)
 ):
@@ -207,10 +426,21 @@ def manage_advance(
             balance.cash_balance -= advance.amount
         elif mode == "ONLINE":
             balance.bank_balance -= advance.amount
-            
+
+        # Determine employee name for the expense log
+        emp_name = "Unknown"
+        if advance.employee_id:
+            emp = db.query(models.Employee).filter(models.Employee.id == advance.employee_id).first()
+            if emp:
+                emp_name = emp.name
+        elif advance.user_id:
+            user = db.query(models.User).filter(models.User.id == advance.user_id).first()
+            if user:
+                emp_name = user.username
+
         # Log as Expense to show up on unified ledger & finances dashboard
         new_expense = models.Expense(
-            item=f"Salary Advance - {advance.user.username}",
+            item=f"Salary Advance - {emp_name}",
             amount=advance.amount,
             payment_mode=mode,
             description=f"Approved salary advance for {advance.month}/{advance.year}"
@@ -224,3 +454,65 @@ def manage_advance(
         
     db.commit()
     return {"message": f"Advance request {action}d successfully."}
+
+
+# ============================================================================
+# EMPLOYEE SELF-SERVICE — Read-only salary view for linked users
+# ============================================================================
+
+@router.get("/my-salary")
+def get_my_salary(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """
+    Returns the current logged-in user's salary info (read-only).
+    Looks up the Employee record linked to this user.
+    Falls back to User.base_salary for backward compatibility.
+    """
+    # Try to find an employee record linked to this user
+    employee = db.query(models.Employee).filter(
+        models.Employee.user_id == current_user.id
+    ).first()
+
+    if employee:
+        advances = db.query(models.SalaryAdvance).filter(
+            models.SalaryAdvance.employee_id == employee.id
+        ).order_by(models.SalaryAdvance.timestamp.desc()).all()
+
+        return {
+            "employee_name": employee.name,
+            "role": employee.role,
+            "base_salary": employee.base_salary,
+            "advances": [
+                {
+                    "id": adv.id,
+                    "amount": adv.amount,
+                    "month": adv.month,
+                    "year": adv.year,
+                    "approved_by_admin": adv.approved_by_admin,
+                    "timestamp": adv.timestamp
+                } for adv in advances
+            ]
+        }
+
+    # Backward compatibility: fall back to User.base_salary
+    advances = db.query(models.SalaryAdvance).filter(
+        models.SalaryAdvance.user_id == current_user.id
+    ).order_by(models.SalaryAdvance.timestamp.desc()).all()
+    
+    return {
+        "employee_name": current_user.username,
+        "role": "Staff",
+        "base_salary": current_user.base_salary,
+        "advances": [
+            {
+                "id": adv.id,
+                "amount": adv.amount,
+                "month": adv.month,
+                "year": adv.year,
+                "approved_by_admin": adv.approved_by_admin,
+                "timestamp": adv.timestamp
+            } for adv in advances
+        ]
+    }

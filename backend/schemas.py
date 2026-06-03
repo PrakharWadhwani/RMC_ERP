@@ -203,16 +203,57 @@ class SystemSettingsResponse(ORMBase):
     low_stock_limit: int
     updated_at: datetime
 
-# --- 7. WORKER SALARY & ADVANCES ---
+# --- 7. EMPLOYEE MANAGEMENT (Admin-controlled) ---
+
+class EmployeeCreate(BaseModel):
+    name: str
+    phone_no: Optional[str] = None
+    role: str = "Staff"
+    base_salary: float = 0.0
+    user_id: Optional[int] = None
+
+class EmployeeUpdate(BaseModel):
+    name: Optional[str] = None
+    phone_no: Optional[str] = None
+    role: Optional[str] = None
+    base_salary: Optional[float] = None
+    is_active: Optional[bool] = None
+    user_id: Optional[int] = None
+
+class EmployeeResponse(ORMBase):
+    id: int
+    name: str
+    phone_no: Optional[str] = None
+    role: str
+    base_salary: float
+    is_active: bool
+    user_id: Optional[int] = None
+    created_at: datetime
+    linked_username: Optional[str] = None
+
+class SalaryUpdateRequest(BaseModel):
+    new_salary: float
+
+class SalaryLogResponse(ORMBase):
+    id: int
+    employee_id: int
+    old_salary: float
+    new_salary: float
+    changed_by: str
+    timestamp: datetime
+
+# --- 8. WORKER SALARY & ADVANCES ---
 
 class SalaryAdvanceCreate(BaseModel):
+    employee_id: int
     amount: float
     month: int
     year: int
 
 class SalaryAdvanceResponse(ORMBase):
     id: int
-    user_id: int
+    employee_id: Optional[int] = None
+    user_id: Optional[int] = None
     amount: float
     month: int
     year: int

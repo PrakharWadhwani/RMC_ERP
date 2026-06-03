@@ -61,6 +61,18 @@ app.include_router(salary.router)
 def startup_restore_from_csv():
     auth.ensure_user_phone_column()
     auth.ensure_system_settings_columns()
+
+    # Ensure salary_advances has the employee_id column (migration for existing DBs)
+    try:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            columns = conn.execute(text("PRAGMA table_info(salary_advances)")).fetchall()
+            if not any(row[1] == "employee_id" for row in columns):
+                conn.execute(text("ALTER TABLE salary_advances ADD COLUMN employee_id INTEGER"))
+                print("[STARTUP] Added employee_id column to salary_advances table")
+    except Exception as e:
+        print(f"[STARTUP] salary_advances migration skipped: {e}")
+
     db = SessionLocal()
     try:
         sync_csv_to_db(db)

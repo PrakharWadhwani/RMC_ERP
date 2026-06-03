@@ -51,7 +51,15 @@ export const useAuthStore = create<AuthStore>((set) => ({
 
       return true;
     } catch (err: any) {
-      const message = err.response?.data?.detail || 'Login failed';
+      const detail = err.response?.data?.detail;
+      let message: string;
+      if (Array.isArray(detail)) {
+        message = detail.map((d: any) => d.msg).join(", ");
+      } else if (typeof detail === "string") {
+        message = detail;
+      } else {
+        message = "Login failed. Please try again.";
+      }
       set({ isLoading: false, error: message });
       return false;
     }

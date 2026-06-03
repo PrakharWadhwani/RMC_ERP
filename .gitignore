@@ -43,3 +43,6 @@ Thumbs.db
 # IDE/editor settings
 .vscode/
 .idea/
+
+# Launch scripts
+launch_rainbow_erp.bat

@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   Truck,
   Receipt,
-  Coins,
   Search
 } from "lucide-react";
 import styles from "./Sidebar.module.css";
@@ -59,8 +58,8 @@ export default function Sidebar() {
               href="/admin/salary" 
               className={cn(styles.navItem, pathname === "/admin/salary" && styles.active)}
             >
-              <Coins size={20} />
-              Staff Salaries
+              <Users size={20} />
+              Employees
             </Link>
           </>
         )}
@@ -70,7 +69,7 @@ export default function Sidebar() {
             href="/salary" 
             className={cn(styles.navItem, pathname === "/salary" && styles.active)}
           >
-            <Coins size={20} />
+            <Wallet size={20} />
             My Salary
           </Link>
         )}

@@ -155,11 +155,39 @@ class SystemSettings(Base):
     low_stock_limit = Column(Integer, default=5)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
-# --- 7. WORKER SALARY & ADVANCES ---
+# --- 7. EMPLOYEE MANAGEMENT (Admin-controlled) ---
+class Employee(Base):
+    __tablename__ = "employees"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    phone_no = Column(String, nullable=True)
+    role = Column(String, default="Staff")           # e.g. "Staff", "Manager", "Driver"
+    base_salary = Column(Float, default=0.0)
+    is_active = Column(Boolean, default=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # optional link to login account
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    user = relationship("User", foreign_keys=[user_id])
+    salary_logs = relationship("SalaryLog", back_populates="employee")
+    advances = relationship("SalaryAdvance", back_populates="employee")
+
+class SalaryLog(Base):
+    __tablename__ = "salary_logs"
+    id = Column(Integer, primary_key=True, index=True)
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=False)
+    old_salary = Column(Float, nullable=False)
+    new_salary = Column(Float, nullable=False)
+    changed_by = Column(String, nullable=False)      # admin username who made the change
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+
+    employee = relationship("Employee", back_populates="salary_logs")
+
+# --- 8. WORKER SALARY ADVANCES ---
 class SalaryAdvance(Base):
     __tablename__ = "salary_advances"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
+    employee_id = Column(Integer, ForeignKey("employees.id"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # kept for backward compat
     amount = Column(Float, nullable=False)
     month = Column(Integer) # 1-12
     year = Column(Integer)
@@ -170,4 +198,5 @@ class SalaryAdvance(Base):
     def cash_flow_direction(self):
         return "OUTWARD"
     
+    employee = relationship("Employee", back_populates="advances")
     user = relationship("User")
