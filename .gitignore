@@ -9,6 +9,14 @@ client/out/
 backend/__pycache__/
 **/__pycache__/
 *.py[cod]
+client/dist/
+dist/
+build/
+
+# Local data & logs
+backend/otp_delivery.log
+backend/otp_store.json
+*.log
 
 # Virtual environments
 .venv/
@@ -16,9 +24,19 @@ venv/
 ENV/
 env/
 
-# Environment files
+# Environment & Secret files
 .env
 .env.*
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+**/*credentials*.json
+**/*client_secret*.json
+**/service_account.json
+**/secrets/
+**/keys/
+
 
 # Database files
 *.sqlite

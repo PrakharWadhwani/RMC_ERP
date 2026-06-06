@@ -110,6 +110,15 @@ class PasswordChangeRequest(BaseModel):
     new_password: str
     confirm_password: str
 
+class ForgotPasswordRequest(BaseModel):
+    phone_no: str
+
+class ForgotPasswordVerify(BaseModel):
+    phone_no: str
+    code: str
+    new_password: str
+    confirm_password: str
+
 class OtpRequest(BaseModel):
     phone_no: Optional[str] = None
 

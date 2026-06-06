@@ -36,9 +36,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
       // We extract the access_token and the confirmed username from the response
       const { access_token, username: confirmedUser, is_admin } = response.data;
       
-      localStorage.setItem('token', access_token);
-      localStorage.setItem('username', confirmedUser || username);
-      localStorage.setItem('is_admin', String(!!is_admin));
+      sessionStorage.setItem('token', access_token);
+      sessionStorage.setItem('username', confirmedUser || username);
+      sessionStorage.setItem('is_admin', String(!!is_admin));
 
       set({
         token: access_token,
@@ -87,9 +87,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('username');
-    localStorage.removeItem('is_admin');
+    sessionStorage.removeItem('token');
+    sessionStorage.removeItem('username');
+    sessionStorage.removeItem('is_admin');
     set({
       token: null,
       username: null,
@@ -100,9 +100,9 @@ export const useAuthStore = create<AuthStore>((set) => ({
   },
 
   hydrate: () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
-    const isAdminString = typeof window !== 'undefined' ? localStorage.getItem('is_admin') : null;
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('token') : null;
+    const username = typeof window !== 'undefined' ? sessionStorage.getItem('username') : null;
+    const isAdminString = typeof window !== 'undefined' ? sessionStorage.getItem('is_admin') : null;
     const isAdmin = isAdminString === 'true';
     const isAuthenticated = !!token;
     set({

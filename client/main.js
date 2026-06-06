@@ -3,7 +3,7 @@
 // Manages FastAPI backend + Next.js frontend lifecycles inside a single frame.
 // ============================================================================
 
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, session } = require("electron");
 const { spawn, execSync } = require("child_process");
 const path = require("path");
 const net = require("net");
@@ -157,6 +157,11 @@ function nukeZombies() {
 // Create the Electron BrowserWindow
 // ---------------------------------------------------------------------------
 async function createWindow() {
+  // Clear all session storage, cookies, and cache on startup
+  session.defaultSession.clearStorageData({
+    storages: ['cookies', 'localstorage', 'shadercache', 'cachestorage']
+  });
+
   // Spawn servers
   spawnBackend();
   spawnFrontend();
@@ -176,7 +181,7 @@ async function createWindow() {
     minWidth: 1024,
     minHeight: 700,
     title: "Rainbow ERP",
-    icon: path.join(CLIENT_DIR, "public", "favicon.ico"),
+    icon: path.join(CLIENT_DIR, "public", "icon.ico"),
     autoHideMenuBar: true,
     webPreferences: {
       // Disable web security to bypass CORS within the Electron frame
@@ -204,6 +209,28 @@ async function createWindow() {
   win.webContents.on("render-process-gone", (event, details) => {
     console.error(`[Electron] Render process gone: ${details.reason}`);
     win.loadURL(`http://127.0.0.1:${FRONTEND_PORT}`);
+  });
+
+  // Intercept close event to perform cloud sync before terminating
+  let isSyncingAndClosing = false;
+  win.on("close", (e) => {
+    if (isSyncingAndClosing) return;
+    e.preventDefault();
+    isSyncingAndClosing = true;
+    console.log("[Electron] Initiating sync to cloud before closing...");
+    const syncProcess = spawn("python", ["drive_sync.py", "--push"], {
+      cwd: BACKEND_DIR,
+      windowsHide: true,
+      shell: false,
+    });
+    
+    syncProcess.stdout.on("data", (d) => process.stdout.write(`[Sync] ${d}`));
+    syncProcess.stderr.on("data", (d) => process.stderr.write(`[Sync] ${d}`));
+    
+    syncProcess.on("close", (code) => {
+      console.log(`[Electron] Cloud sync completed on close with code ${code}. Destroying window.`);
+      win.destroy();
+    });
   });
 
   // When the window is closed, tear everything down

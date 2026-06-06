@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Package, Receipt, RefreshCw, ShoppingCart, Truck, Users, Wallet } from "lucide-react";
+import { AlertTriangle, Package, Receipt, RefreshCw, ShoppingCart, Truck, Users, Wallet, Cloud } from "lucide-react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
@@ -14,6 +14,19 @@ export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  const handleSyncCloud = async () => {
+    setSyncing(true);
+    try {
+      await api.post("/api/sync/cloud");
+      alert("Sync Complete!");
+    } catch (err: any) {
+      alert("Sync Failed: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -65,10 +78,16 @@ export default function DashboardPage() {
             {loading ? "Loading today's operational view..." : `Viewed by ${dashboard?.viewed_by || "—"}`}
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="default" size="sm" onClick={handleSyncCloud} disabled={syncing}>
+            <Cloud className={`mr-2 h-4 w-4 ${syncing ? "animate-pulse" : ""}`} />
+            {syncing ? "Syncing..." : "Sync to Cloud"}
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Full-width quick actions row */}

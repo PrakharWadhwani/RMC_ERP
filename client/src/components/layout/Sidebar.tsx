@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
@@ -9,7 +10,6 @@ import {
   Users,
   Wallet,
   Settings,
-  Zap,
   ShieldCheck,
   Truck,
   Receipt,
@@ -39,7 +39,6 @@ export default function Sidebar() {
     <aside className={styles.sidebar}>
       {/* Branding Area */}
       <div className={styles.logo}>
-        <Zap size={24} fill="currentColor" />
         <span>RMC ERP</span>
       </div>
 
@@ -47,15 +46,15 @@ export default function Sidebar() {
       <nav className={styles.navGroup}>
         {isAdmin && (
           <>
-            <Link 
-              href="/admin/approvals" 
+            <Link
+              href="/admin/approvals"
               className={cn(styles.navItem, pathname === "/admin/approvals" && styles.active)}
             >
               <ShieldCheck size={20} />
               Staff Requests
             </Link>
-            <Link 
-              href="/admin/salary" 
+            <Link
+              href="/admin/salary"
               className={cn(styles.navItem, pathname === "/admin/salary" && styles.active)}
             >
               <Users size={20} />
@@ -65,8 +64,8 @@ export default function Sidebar() {
         )}
 
         {username && !isAdmin && (
-          <Link 
-            href="/salary" 
+          <Link
+            href="/salary"
             className={cn(styles.navItem, pathname === "/salary" && styles.active)}
           >
             <Wallet size={20} />
@@ -77,8 +76,8 @@ export default function Sidebar() {
         {menuItems.map((item) => {
           const isActive = pathname === item.path;
           return (
-            <Link 
-              key={item.path} 
+            <Link
+              key={item.path}
               href={item.path}
               className={cn(styles.navItem, isActive && styles.active)}
             >
@@ -92,8 +91,8 @@ export default function Sidebar() {
       {/* Footer Area with Theme Toggle and Settings */}
       <div className={styles.footer}>
         <ThemeToggle />
-        <Link 
-          href="/settings" 
+        <Link
+          href="/settings"
           className={cn(styles.navItem, pathname === "/settings" && styles.active)}
         >
           <Settings size={20} />

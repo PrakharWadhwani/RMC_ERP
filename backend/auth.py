@@ -162,6 +162,51 @@ def verify_otp(
     return {"verification_token": verification_token}
 
 
+@router.post("/forgot-password/request")
+def forgot_password_request(
+    payload: schemas.ForgotPasswordRequest,
+    db: Session = Depends(database.get_db),
+):
+    target_phone = payload.phone_no.strip()
+    if not target_phone:
+        raise HTTPException(status_code=400, detail="Phone number is required")
+
+    user = db.query(models.User).filter(models.User.phone_no == target_phone).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Phone number not found.")
+
+    create_otp_request(user.id, target_phone)
+    db.commit()
+    return {"message": f"Password reset OTP sent to {target_phone}"}
+
+
+@router.post("/forgot-password/verify")
+def forgot_password_verify(
+    payload: schemas.ForgotPasswordVerify,
+    db: Session = Depends(database.get_db),
+):
+    target_phone = payload.phone_no.strip()
+    user = db.query(models.User).filter(models.User.phone_no == target_phone).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Phone number not found.")
+        
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    if len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
+
+    # This will raise a ValueError if the OTP is invalid or expired
+    try:
+        verify_otp_code(user.id, payload.code)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    user.hashed_password = get_password_hash(payload.new_password)
+    db.commit()
+    
+    return {"message": "Password successfully reset"}
+
+
 @router.put("/settings", response_model=schemas.UserResponse)
 def update_settings(
     payload: schemas.UserSettingsUpdate,

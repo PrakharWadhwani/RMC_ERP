@@ -79,19 +79,15 @@ if "!OLD_COMMIT!" neq "!NEW_COMMIT!" (
     )
 )
 
-if not exist ".next" (
-    echo No production build found. Compiling now...
-    echo This may take 1-3 minutes on first run. Please wait...
-    call npm run build
-    if %errorlevel% neq 0 (
-        echo [ERROR] Next.js build failed! Check errors above.
-        pause
-        exit /b 1
-    )
-    echo [OK] Production build completed successfully.
-) else (
-    echo [OK] Existing production build detected. Skipping compile.
+echo Compiling Next.js production build...
+echo This may take 1-3 minutes. Please wait...
+call npm run build
+if %errorlevel% neq 0 (
+    echo [ERROR] Next.js build failed! Check errors above.
+    pause
+    exit /b 1
 )
+echo [OK] Production build completed successfully.
 echo.
 
 :: ============================================================
@@ -124,8 +120,8 @@ set LAUNCHER_BAT=%ROOT_DIR%launch_rainbow_erp.bat
     echo oShortcut.WorkingDirectory = "%ROOT_DIR%"
     echo oShortcut.WindowStyle = 7
     echo oShortcut.Description = "Launch Rainbow ERP Desktop Application"
-    echo If CreateObject^("Scripting.FileSystemObject"^).FileExists^("%CLIENT_DIR%\public\favicon.ico"^) Then
-    echo     oShortcut.IconLocation = "%CLIENT_DIR%\public\favicon.ico"
+    echo If CreateObject^("Scripting.FileSystemObject"^).FileExists^("%CLIENT_DIR%\public\icon.ico"^) Then
+    echo     oShortcut.IconLocation = "%CLIENT_DIR%\public\icon.ico"
     echo End If
     echo oShortcut.Save
 ) > "%VBS_FILE%"
@@ -143,17 +139,27 @@ if exist "%USERPROFILE%\Desktop\Rainbow ERP.lnk" (
 echo.
 
 :: ============================================================
-::  PHASE 6 — Launch the Application
+::  PHASE 6 — Run Database Sync & Launch the Application
 :: ============================================================
 echo ==================================================
-echo   Phase 6: Launching Rainbow ERP Desktop App
+echo   Phase 6: Syncing Database to Cloud & Launching App
 echo ==================================================
+echo Running Google Drive/Sheets Cloud Sync...
+cd /d "%BACKEND_DIR%"
+python drive_sync.py --push
+if %errorlevel% neq 0 (
+    echo [WARNING] Cloud sync finished with errors or was skipped.
+) else (
+    echo [OK] Cloud sync completed successfully.
+)
+echo.
+
 echo Starting Electron application frame...
 echo The app window will appear once all servers are ready.
 echo.
 
 cd /d "%CLIENT_DIR%"
-start "" /b npx electron .
+start "" /b npm run electron
 
 echo.
 echo ==================================================

@@ -27,7 +27,7 @@ const api = axios.create({
 
 // Request Interceptor: Injects context dynamically based on request type
 api.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const token = typeof window !== 'undefined' ? sessionStorage.getItem('token') : null;
   const headers = AxiosHeaders.from(config.headers);
   
   // Only apply JSON definitions if we are sending data down the pipe (POST/PUT/PATCH)
@@ -51,8 +51,8 @@ api.interceptors.response.use(
   (error) => {
     if (error?.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('username');
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('username');
         window.location.href = '/login';
       }
     }

@@ -2,6 +2,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+from dotenv import load_dotenv
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 from database import engine, Base, SessionLocal
 from db_sync import sync_csv_to_db
 # Correct imports for your separated structure
@@ -55,6 +60,16 @@ app.include_router(finances.router)
 app.include_router(search.router)
 app.include_router(auth.router)
 app.include_router(salary.router)
+
+from drive_sync import sync_to_cloud
+@app.post("/api/sync/cloud")
+def sync_cloud_endpoint():
+    result = sync_to_cloud()
+    if result.get("status") == "success":
+        return {"message": result["message"]}
+    else:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=result.get("message", "Unknown error"))
 
 
 @app.on_event("startup")

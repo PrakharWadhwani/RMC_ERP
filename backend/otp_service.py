@@ -74,12 +74,42 @@ def _deliver_sms(phone_no, code):
             raise RuntimeError("Twilio environment variables are not configured")
 
         client = Client(account_sid, auth_token)
-        client.messages.create(body=f"Your Rainbow ERP verification code is {code}", from_=from_number, to=phone_no)
+        
+        # Ensure numbers are formatted for Twilio WhatsApp API
+        wa_from = from_number if from_number.startswith("whatsapp:") else f"whatsapp:{from_number}"
+        
+        # Strip any spaces or dashes before appending
+        clean_phone = phone_no.replace(" ", "").replace("-", "")
+        # Twilio requires E.164 formatting (e.g. +1234567890). Assuming it already has a country code or the user provides it.
+        if not clean_phone.startswith("+"):
+            clean_phone = "+" + clean_phone
+            
+        wa_to = f"whatsapp:{clean_phone}"
+
+        client.messages.create(
+            body=f"Your Rainbow ERP verification code is *{code}*", 
+            from_=wa_from, 
+            to=wa_to
+        )
         return True
-    except Exception:
+    except Exception as e:
         with DELIVERY_LOG_PATH.open("a", encoding="utf-8") as handle:
-            handle.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] OTP {code} sent to {phone_no} via fallback log\n")
-        print(f"[OTP DELIVERY FALLBACK] OTP {code} would be sent to {phone_no}")
+            handle.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] OTP {code} sent to WhatsApp {phone_no} via fallback log (Error: {e})\n")
+        
+        # Local WhatsApp Desktop/Web fallback instead of returning OTP to the client
+        try:
+            import urllib.parse
+            import webbrowser
+            
+            clean_phone = phone_no.replace(" ", "").replace("-", "").replace("+", "")
+            message = urllib.parse.quote(f"Your Rainbow ERP verification code is {code}")
+            wa_url = f"https://wa.me/{clean_phone}?text={message}"
+            
+            webbrowser.open(wa_url)
+            print(f"[OTP DELIVERY] Opened local WhatsApp URL for {phone_no}")
+        except Exception as wb_err:
+            print(f"[OTP DELIVERY FALLBACK] Failed to open local browser: {wb_err}")
+
         return True
 
 
