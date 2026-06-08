@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Zap, UserPlus } from "lucide-react";
+import { Loader2, Zap, UserPlus, Eye, EyeOff } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -11,6 +11,7 @@ import Link from "next/link";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({ username: "", phone_no: "", password: "" });
+  const [showPassword, setShowPassword] = useState(false);
   const { register, isLoading } = useAuthStore(); // Get register from store
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const router = useRouter();
@@ -64,13 +65,22 @@ export default function RegisterPage() {
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-black uppercase text-white/60">Password</Label>
-              <Input 
-                type="password"
-                className="bg-white/5 border-white/10 text-white"
-                value={formData.password}
-                onChange={(e) => setFormData({...formData, password: e.target.value})} 
-                required 
-              />
+              <div className="relative">
+                <Input 
+                  type={showPassword ? "text" : "password"}
+                  className="bg-white/5 border-white/10 text-white pr-12"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})} 
+                  required 
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {message && (

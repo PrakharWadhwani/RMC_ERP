@@ -27,6 +27,8 @@ export default function LoginPage() {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState("");
+  const [showForgotNewPassword, setShowForgotNewPassword] = useState(false);
+  const [showForgotConfirmPassword, setShowForgotConfirmPassword] = useState(false);
 
   const handleForgotRequest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +67,8 @@ export default function LoginPage() {
         setForgotNewPassword("");
         setForgotConfirmPassword("");
         setForgotSuccess("");
+        setShowForgotNewPassword(false);
+        setShowForgotConfirmPassword(false);
       }, 3000);
     } catch (err: any) {
       setForgotError(err.response?.data?.detail || err.message || "Failed to reset password");
@@ -159,6 +163,8 @@ export default function LoginPage() {
                     setForgotStep(1);
                     setForgotError("");
                     setForgotSuccess("");
+                    setShowForgotNewPassword(false);
+                    setShowForgotConfirmPassword(false);
                   }}
                   className="text-xs font-bold text-white/40 hover:text-[var(--primary-green)] transition-colors"
                 >
@@ -280,31 +286,49 @@ export default function LoginPage() {
                   <Label htmlFor="forgot-new-pwd" className="text-xs font-black uppercase text-white/60">
                     New Password
                   </Label>
-                  <Input
-                    id="forgot-new-pwd"
-                    type="password"
-                    value={forgotNewPassword}
-                    onChange={(e) => setForgotNewPassword(e.target.value)}
-                    required
-                    placeholder="New password"
-                    className="bg-white/5 border-white/10 text-white"
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="forgot-new-pwd"
+                      type={showForgotNewPassword ? "text" : "password"}
+                      value={forgotNewPassword}
+                      onChange={(e) => setForgotNewPassword(e.target.value)}
+                      required
+                      placeholder="New password"
+                      className="bg-white/5 border-white/10 text-white pr-12"
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotNewPassword(!showForgotNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                    >
+                      {showForgotNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="forgot-confirm-pwd" className="text-xs font-black uppercase text-white/60">
                     Confirm Password
                   </Label>
-                  <Input
-                    id="forgot-confirm-pwd"
-                    type="password"
-                    value={forgotConfirmPassword}
-                    onChange={(e) => setForgotConfirmPassword(e.target.value)}
-                    required
-                    placeholder="Confirm new password"
-                    className="bg-white/5 border-white/10 text-white"
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="forgot-confirm-pwd"
+                      type={showForgotConfirmPassword ? "text" : "password"}
+                      value={forgotConfirmPassword}
+                      onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                      required
+                      placeholder="Confirm new password"
+                      className="bg-white/5 border-white/10 text-white pr-12"
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowForgotConfirmPassword(!showForgotConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                    >
+                      {showForgotConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex gap-3 mt-6">
                   <Button
