@@ -96,7 +96,7 @@ echo ==================================================
 
 set LAUNCHER_BAT=%ROOT_DIR%launch_rainbow_erp.bat
 
-:: Create the runtime controller engine script
+:: Create the self-monitoring runtime controller engine script
 (
     echo @echo off
     echo title Rainbow ERP - Live Terminal Controller
@@ -112,30 +112,36 @@ set LAUNCHER_BAT=%ROOT_DIR%launch_rainbow_erp.bat
     echo echo [3/3] Waiting for servers to initialize...
     echo timeout /t 6 /nobreak ^>nul
     echo.
-    echo echo Launching Google Chrome Application Mode...
-    echo start "" "chrome.exe" --app=http://localhost:3000
+    echo echo Launching Isolated Google Chrome Application Mode...
+    echo :: Sandboxing the user profile ensures it doesn't require Chrome open in the background
+    echo start "RainbowERP_Instance" "chrome.exe" --app=http://localhost:3000 --user-data-dir="%TEMP%\RainbowChromeProfile"
     echo cls
     echo ============================================================
-    echo   RAINBOW ERP IS RUNNING normally inside Google Chrome.
+    echo   RAINBOW ERP IS ACTIVE AND RUNNING RUNNING...
     echo ============================================================
     echo.
-    echo   DO NOT CLOSE THIS BLACK WINDOW UNTIL YOU ARE DONE WORKING.
+    echo   * Work inside the Google Chrome Application Window normally.
+    echo   * The terminal is monitoring your session in the background.
     echo.
-    echo   When you are completely finished and ready to close the app:
-    echo   Press ANY KEY in this terminal to backup data and exit.
+    echo   Closing the Chrome App Window will automatically sync to cloud.
     echo.
     echo ============================================================
     echo.
-    echo pause ^>nul
+    echo echo Monitoring application window status...
+    echo :CHROME_MONITOR
+    echo timeout /t 3 /nobreak ^>nul
+    echo :: Check if our specific sandboxed window process is still alive
+    echo tasklist /v /fi "IMAGENAME eq chrome.exe" 2^>nul | findstr /i "RainbowChromeProfile" ^>nul
+    echo if %%errorlevel%% equ 0 goto CHROME_MONITOR
     echo.
+    echo echo Chrome Window closure detected! Starting Auto-Sync...
     echo echo Syncing local changes to Google Cloud Sheets...
     echo cd /d "%BACKEND_DIR%"
     echo python drive_sync.py --push
     echo.
-    echo echo Terminating background app processes...
+    echo echo Terminating background server processes safely...
     echo taskkill /f /im node.exe ^>nul 2^>nul
     echo taskkill /f /im python.exe ^>nul 2^>nul
-    echo taskkill /f /im chrome.exe /fi "WINDOWTITLE eq Rainbow ERP*" ^>nul 2^>nul
     echo exit
 ) > "%LAUNCHER_BAT%"
 
