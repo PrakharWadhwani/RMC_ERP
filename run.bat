@@ -1,5 +1,5 @@
 @echo off
-title Rainbow ERP — Full Stack Installer + Desktop Shortcut Creator
+title Rainbow ERP — Full Stack Installer + Chrome Auto-Sync Framework
 setlocal enabledelayedexpansion
 set ROOT_DIR=%~dp0
 set BACKEND_DIR=%ROOT_DIR%backend
@@ -57,9 +57,7 @@ if not exist "node_modules" (
     echo [ALERT] node_modules missing. Running npm install...
     call npm install
 ) else (
-    echo [OK] node_modules exists.
-    :: Always ensure electron is present since it was recently added
-    call npm install electron --save-dev --quiet 2>nul
+    echo [OK] node_modules exists. Skipping Electron install...
 )
 echo.
 
@@ -71,7 +69,6 @@ echo   Phase 4: Building Next.js Production Bundle
 echo ==================================================
 cd /d "%CLIENT_DIR%"
 
-:: If git pulled new code, purge the old build cache
 if "!OLD_COMMIT!" neq "!NEW_COMMIT!" (
     if "!OLD_COMMIT!" neq "NONE" (
         echo [UPDATE DETECTED] Purging stale .next build cache...
@@ -91,52 +88,84 @@ echo [OK] Production build completed successfully.
 echo.
 
 :: ============================================================
-::  PHASE 5 — Create Desktop Shortcut via VBScript
+::  PHASE 5 — Create Desktop Shortcut via VBScript (Auto-Sync Hook)
 :: ============================================================
 echo ==================================================
-echo   Phase 5: Creating Desktop Shortcut - Rainbow ERP
+echo   Phase 5: Creating Interactive Desktop Shortcut
 echo ==================================================
 
-:: Build a temporary VBScript that creates a Windows shortcut
-set VBS_FILE=%TEMP%\create_shortcut_rainbow_erp.vbs
-
-:: The shortcut will launch the Electron app in a hidden window via a small
-:: intermediate batch wrapper so the user never sees a dangling cmd.exe.
-
-:: First, create the silent launcher batch file
 set LAUNCHER_BAT=%ROOT_DIR%launch_rainbow_erp.bat
+
+:: Create the runtime controller engine script
 (
     echo @echo off
+    echo title Rainbow ERP - Live Terminal Controller
+    echo.
+    echo echo [1/3] Starting Python API Server via Python Module...
+    echo cd /d "%BACKEND_DIR%"
+    echo start "Rainbow ERP Backend API" python -m uvicorn main:app --host 127.0.0.1 --port 8000
+    echo.
+    echo echo [2/3] Starting Next.js Web Server...
     echo cd /d "%CLIENT_DIR%"
-    echo start "" /b npx electron .
+    echo start "Rainbow ERP Frontend" /b npm run start
+    echo.
+    echo echo [3/3] Waiting for servers to initialize...
+    echo timeout /t 6 /nobreak ^>nul
+    echo.
+    echo echo Launching Google Chrome Application Mode...
+    echo start "" "chrome.exe" --app=http://localhost:3000
+    echo cls
+    echo ============================================================
+    echo   RAINBOW ERP IS RUNNING normally inside Google Chrome.
+    echo ============================================================
+    echo.
+    echo   DO NOT CLOSE THIS BLACK WINDOW UNTIL YOU ARE DONE WORKING.
+    echo.
+    echo   When you are completely finished and ready to close the app:
+    echo   Press ANY KEY in this terminal to backup data and exit.
+    echo.
+    echo ============================================================
+    echo.
+    echo pause ^>nul
+    echo.
+    echo echo Syncing local changes to Google Cloud Sheets...
+    echo cd /d "%BACKEND_DIR%"
+    echo python drive_sync.py --push
+    echo.
+    echo echo Terminating background app processes...
+    echo taskkill /f /im node.exe ^>nul 2^>nul
+    echo taskkill /f /im python.exe ^>nul 2^>nul
+    echo taskkill /f /im chrome.exe /fi "WINDOWTITLE eq Rainbow ERP*" ^>nul 2^>nul
+    echo exit
 ) > "%LAUNCHER_BAT%"
 
-:: Now create the VBScript that generates the .lnk shortcut
+:: Build a temporary VBScript that creates the absolute desktop .lnk file
+set VBS_FILE=%TEMP%\create_shortcut_rainbow_erp.vbs
 (
     echo Set WshShell = CreateObject^("WScript.Shell"^)
     echo strDesktop = WshShell.SpecialFolders^("Desktop"^)
     echo Set oShortcut = WshShell.CreateShortcut^(strDesktop ^& "\Rainbow ERP.lnk"^)
     echo oShortcut.TargetPath = "%LAUNCHER_BAT%"
     echo oShortcut.WorkingDirectory = "%ROOT_DIR%"
-    echo oShortcut.WindowStyle = 7
-    echo oShortcut.Description = "Launch Rainbow ERP Desktop Application"
+    echo oShortcut.WindowStyle = 1
+    echo oShortcut.Description = "Launch Rainbow ERP Application"
     echo If CreateObject^("Scripting.FileSystemObject"^).FileExists^("%CLIENT_DIR%\public\icon.ico"^) Then
-    echo     oShortcut.IconLocation = "%CLIENT_DIR%\public\icon.ico"
+    echo      oShortcut.IconLocation = "%CLIENT_DIR%\public\icon.ico"
     echo End If
     echo oShortcut.Save
 ) > "%VBS_FILE%"
 
-:: Execute the VBScript to place the shortcut
+:: Execute the VBScript to place the shortcut on the desktop
 cscript //nologo "%VBS_FILE%"
 del "%VBS_FILE%" 2>nul
 
 if exist "%USERPROFILE%\Desktop\Rainbow ERP.lnk" (
     echo [OK] Desktop shortcut "Rainbow ERP" created successfully!
 ) else (
-    echo [WARNING] Shortcut creation may have failed. You can run the app manually:
-    echo           cd client ^&^& npm run electron
+    echo [WARNING] Shortcut creation may have failed.
 )
 echo.
+
 
 :: ============================================================
 ::  PHASE 6 — Run Database Sync & Launch the Application
@@ -154,21 +183,11 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-echo Starting Electron application frame...
-echo The app window will appear once all servers are ready.
-echo.
-
-cd /d "%CLIENT_DIR%"
-start "" /b npm run electron
-
-echo.
 echo ==================================================
-echo   Rainbow ERP is now running!
-echo   Close the app window to shut down all servers.
+echo   Rainbow ERP is now completely configured!
 echo ==================================================
 echo.
-echo You can close this terminal. The app runs independently.
-echo A desktop shortcut "Rainbow ERP" has been placed on your Desktop
-echo for future launches without re-running this installer.
+echo A desktop shortcut "Rainbow ERP" has been placed on your Desktop.
+echo Please double-click the shortcut on the Desktop to start the app!
 echo.
 pause
