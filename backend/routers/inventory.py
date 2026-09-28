@@ -126,6 +126,13 @@ def create_product(
     
     db.commit()
     db.refresh(new_product)
+
+    try:
+        from routers.finances import refresh_stock_value_cache
+        refresh_stock_value_cache(db)
+    except Exception as e:
+        print(f"Failed to refresh stock cache: {e}")
+
     return new_product
 
 @router.get("/laser-search", response_model=List[schemas.ProductResponse])
@@ -179,6 +186,13 @@ def update_product_stock_or_price(
     db.add(log)
     db.commit()
     db.refresh(product)
+
+    try:
+        from routers.finances import refresh_stock_value_cache
+        refresh_stock_value_cache(db)
+    except Exception as e:
+        print(f"Failed to refresh stock cache: {e}")
+
     return product
 
 @router.get("/products/by-model/{model_no}", response_model=schemas.ProductResponse)
@@ -204,6 +218,13 @@ def delete_product(
     
     db.delete(product)
     db.commit()
+
+    try:
+        from routers.finances import refresh_stock_value_cache
+        refresh_stock_value_cache(db)
+    except Exception as e:
+        print(f"Failed to refresh stock cache: {e}")
+
     return {"message": "Product deleted"}
 
 # --- STOCK UTILITIES ---

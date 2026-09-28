@@ -106,6 +106,13 @@ def make_bulk_purchase(
             balance.bank_balance -= paid_amount
 
     db.commit()
+
+    try:
+        from routers.finances import refresh_stock_value_cache
+        refresh_stock_value_cache(db)
+    except Exception as e:
+        print(f"Failed to refresh stock cache: {e}")
+
     return {"message": "Stock and Bill successfully recorded", "bill_id": new_bill.id}
 
 

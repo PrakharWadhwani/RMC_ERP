@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { DollarSign, TrendingUp, TrendingDown, PlusCircle, Loader2, RefreshCw, CalendarDays, Wallet, Building2, Package, Users, FileText } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, PlusCircle, Loader2, RefreshCw, CalendarDays, Wallet, Building2, Package, Users, FileText, ChevronLeft, ChevronRight, Boxes, Info, Calendar } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -13,7 +13,7 @@ import { Badge } from "../../components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../components/ui/table";
 import BillOverlay from "../../components/BillOverlay";
 import api from "../../lib/api";
-import type { BillOverlayData, DailySummary, ProfitReportResponse, SystemBalance } from "../../lib/types";
+import type { BillOverlayData, DailySummary, ProfitReportResponse, SystemBalance, StockReport, StockCalendarResponse } from "../../lib/types";
 
 export default function FinancesPage() {
   const [summary, setSummary] = useState<DailySummary | null>(null);
@@ -37,6 +37,45 @@ export default function FinancesPage() {
   const [expDesc, setExpDesc] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // Stock Valuation & Movement Report State
+  const [stockPeriod, setStockPeriod] = useState<"day" | "month" | "year">("day");
+  const [stockDate, setStockDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [stockReport, setStockReport] = useState<StockReport | null>(null);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [calendarCache, setCalendarCache] = useState<StockCalendarResponse>({ day: [], month: [], year: [] });
+  const [calDate, setCalDate] = useState(() => new Date());
+
+  const fetchStockReport = async (period: "day" | "month" | "year", dateKey?: string) => {
+    try {
+      setStockLoading(true);
+      const today = new Date();
+      const defaultKey =
+        period === "day"
+          ? today.toISOString().slice(0, 10)
+          : period === "month"
+          ? today.toISOString().slice(0, 7)
+          : today.toISOString().slice(0, 4);
+      const targetDate = dateKey || defaultKey;
+      setStockPeriod(period);
+      setStockDate(targetDate);
+      const res = await api.get(`/finances/stock-report?period=${period}&date=${targetDate}`);
+      setStockReport(res.data);
+    } catch (err) {
+      console.error("Stock Report Error:", err);
+    } finally {
+      setStockLoading(false);
+    }
+  };
+
+  const fetchCalendarCache = async () => {
+    try {
+      const res = await api.get("/finances/stock-report/calendar");
+      setCalendarCache(res.data);
+    } catch (err) {
+      console.error("Stock Calendar Error:", err);
+    }
+  };
+
   const fetchSummary = async () => {
     try {
       setLoading(true);
@@ -54,6 +93,7 @@ export default function FinancesPage() {
       setYearlyReport(yearlyRes.data);
       setEditCash(balRes.data.cash_balance.toString());
       setEditBank(balRes.data.bank_balance.toString());
+      await Promise.all([fetchCalendarCache(), fetchStockReport(stockPeriod, stockDate)]);
     } catch (err) {
       console.error("Finance Error:", err);
     } finally {
@@ -181,10 +221,11 @@ export default function FinancesPage() {
           <Card className="border-2 h-full">
             <CardContent className="pt-6">
               <Tabs defaultValue="daily" className="w-full">
-                <TabsList className="grid w-full grid-cols-4 mb-6">
+                <TabsList className="grid w-full grid-cols-5 mb-6">
                   <TabsTrigger value="daily" className="font-bold uppercase text-xs">Today</TabsTrigger>
                   <TabsTrigger value="monthly" className="font-bold uppercase text-xs">This Month</TabsTrigger>
                   <TabsTrigger value="yearly" className="font-bold uppercase text-xs">This Year</TabsTrigger>
+                  <TabsTrigger value="stock-report" className="font-bold uppercase text-xs text-primary">Stock</TabsTrigger>
                   <TabsTrigger value="ledger" className="font-bold uppercase text-xs bg-primary/10">Ledger</TabsTrigger>
                 </TabsList>
                 
@@ -305,6 +346,300 @@ export default function FinancesPage() {
                     <div className="p-8 text-center text-muted-foreground font-bold">Yearly report is not available right now.</div>
                   )}
                 </TabsContent>
+
+                {/* STOCK VALUATION & MOVEMENT REPORT TAB */}
+                <TabsContent value="stock-report" className="space-y-4">
+                  {/* Period Switcher & Date Controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 p-3 bg-muted/30 rounded-xl border">
+                    <div className="flex items-center gap-1 bg-background p-1 rounded-lg border">
+                      <Button
+                        type="button"
+                        variant={stockPeriod === "day" ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs font-bold uppercase px-3"
+                        onClick={() => fetchStockReport("day")}
+                      >
+                        Day
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={stockPeriod === "month" ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs font-bold uppercase px-3"
+                        onClick={() => fetchStockReport("month")}
+                      >
+                        Month
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={stockPeriod === "year" ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 text-xs font-bold uppercase px-3"
+                        onClick={() => fetchStockReport("year")}
+                      >
+                        Year
+                      </Button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="font-mono text-xs font-bold px-3 py-1">
+                        <Calendar className="h-3 w-3 mr-1.5 text-primary" />
+                        {stockDate}
+                      </Badge>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-7 text-xs font-bold"
+                        onClick={() => {
+                          const today = new Date();
+                          setCalDate(today);
+                          fetchStockReport(stockPeriod);
+                        }}
+                      >
+                        Current
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* 3 Main Stat Cards */}
+                  {stockLoading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-4 border-2 rounded-xl"><Skeleton className="h-4 w-20 mb-2" /><Skeleton className="h-8 w-32 mb-1" /><Skeleton className="h-4 w-24" /></div>
+                      <div className="p-4 border-2 rounded-xl"><Skeleton className="h-4 w-20 mb-2" /><Skeleton className="h-8 w-32 mb-1" /><Skeleton className="h-4 w-24" /></div>
+                      <div className="p-4 border-2 rounded-xl"><Skeleton className="h-4 w-20 mb-2" /><Skeleton className="h-8 w-32 mb-1" /><Skeleton className="h-4 w-24" /></div>
+                    </div>
+                  ) : stockReport ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* IN STOCK */}
+                        <div className="p-4 border-2 rounded-xl bg-card relative overflow-hidden">
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="text-[10px] font-black uppercase text-muted-foreground flex items-center gap-1.5">
+                              <Boxes className="h-3.5 w-3.5 text-primary" /> Current Stock
+                            </p>
+                            <Badge variant={stockReport.is_current ? "default" : stockReport.is_cached ? "secondary" : "outline"} className="text-[9px] uppercase font-bold">
+                              {stockReport.is_current ? "Live" : stockReport.is_cached ? "Cached" : "Past"}
+                            </Badge>
+                          </div>
+                          <p className="text-2xl font-black font-mono tracking-tight text-foreground">
+                            {stockReport.current_stock_value !== null ? fmt(stockReport.current_stock_value) : "—"}
+                          </p>
+                          <p className="text-xs font-bold text-muted-foreground mt-1">
+                            {stockReport.current_stock_units !== null ? `${stockReport.current_stock_units.toLocaleString()} units in stock` : "Snapshot unavailable"}
+                          </p>
+                        </div>
+
+                        {/* STOCK SOLD */}
+                        <div className="p-4 border-2 rounded-xl bg-card border-success/30">
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="text-[10px] font-black uppercase text-success flex items-center gap-1.5">
+                              <TrendingUp className="h-3.5 w-3.5 text-success" /> Stock Sold
+                            </p>
+                            <Badge variant="outline" className="text-[9px] font-bold text-success border-success/40">
+                              Revenue
+                            </Badge>
+                          </div>
+                          <p className="text-2xl font-black font-mono tracking-tight text-success">
+                            {fmt(stockReport.stock_sold_value)}
+                          </p>
+                          <p className="text-xs font-bold text-muted-foreground mt-1">
+                            {stockReport.units_sold.toLocaleString()} units sold
+                          </p>
+                        </div>
+
+                        {/* STOCK BOUGHT */}
+                        <div className="p-4 border-2 rounded-xl bg-card border-blue-500/30">
+                          <div className="flex justify-between items-start mb-2">
+                            <p className="text-[10px] font-black uppercase text-blue-500 flex items-center gap-1.5">
+                              <Package className="h-3.5 w-3.5 text-blue-500" /> Stock Bought
+                            </p>
+                            <Badge variant="outline" className="text-[9px] font-bold text-blue-500 border-blue-500/40">
+                              Purchased
+                            </Badge>
+                          </div>
+                          <p className="text-2xl font-black font-mono tracking-tight text-blue-500">
+                            {fmt(stockReport.stock_bought_value)}
+                          </p>
+                          <p className="text-xs font-bold text-muted-foreground mt-1">
+                            {stockReport.units_bought.toLocaleString()} units bought
+                          </p>
+                        </div>
+                      </div>
+
+                      {!stockReport.historical_stock_available && !stockReport.is_current && (
+                        <div className="p-3 bg-muted/40 rounded-xl border flex items-center gap-2.5 text-xs text-muted-foreground">
+                          <Info className="h-4 w-4 shrink-0 text-primary" />
+                          <span>Stock valuation snapshot is not available for this past date. Sold and bought movement are accurately calculated from transaction history.</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {/* Calendar / Date Selector Picker */}
+                  <div className="p-4 border-2 rounded-xl bg-card space-y-3">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-primary" />
+                        <span className="text-xs font-black uppercase tracking-wider">
+                          {stockPeriod === "day"
+                            ? `${new Date(calDate.getFullYear(), calDate.getMonth(), 1).toLocaleString("default", { month: "long" })} ${calDate.getFullYear()}`
+                            : stockPeriod === "month"
+                            ? `Year ${calDate.getFullYear()}`
+                            : "Select Year"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            if (stockPeriod === "day") {
+                              setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() - 1, 1));
+                            } else {
+                              setCalDate(new Date(calDate.getFullYear() - 1, calDate.getMonth(), 1));
+                            }
+                          }}
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => {
+                            if (stockPeriod === "day") {
+                              setCalDate(new Date(calDate.getFullYear(), calDate.getMonth() + 1, 1));
+                            } else {
+                              setCalDate(new Date(calDate.getFullYear() + 1, calDate.getMonth(), 1));
+                            }
+                          }}
+                        >
+                          <ChevronRight className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* DAY PICKER CALENDAR */}
+                    {stockPeriod === "day" && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-7 gap-1 text-center">
+                          {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((d) => (
+                            <div key={d} className="text-[10px] font-black uppercase text-muted-foreground py-1">
+                              {d}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-7 gap-1">
+                          {Array.from({ length: (new Date(calDate.getFullYear(), calDate.getMonth(), 1).getDay() + 6) % 7 }).map((_, i) => (
+                            <div key={`empty-${i}`} className="h-9" />
+                          ))}
+                          {Array.from({ length: new Date(calDate.getFullYear(), calDate.getMonth() + 1, 0).getDate() }).map((_, i) => {
+                            const dNum = i + 1;
+                            const y = calDate.getFullYear();
+                            const m = String(calDate.getMonth() + 1).padStart(2, "0");
+                            const d = String(dNum).padStart(2, "0");
+                            const key = `${y}-${m}-${d}`;
+                            const isSelected = (key === stockDate);
+                            const isToday = (key === new Date().toISOString().slice(0, 10));
+                            const hasCache = calendarCache.day.includes(key);
+
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => fetchStockReport("day", key)}
+                                className={`h-9 relative rounded-lg text-xs font-bold transition-colors flex flex-col items-center justify-center ${
+                                  isSelected
+                                    ? "bg-primary text-primary-foreground font-black shadow-sm"
+                                    : isToday
+                                    ? "border border-primary text-primary hover:bg-muted"
+                                    : "hover:bg-muted text-foreground"
+                                }`}
+                              >
+                                <span>{dNum}</span>
+                                {hasCache && (
+                                  <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-primary-foreground" : "bg-primary"}`} />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground font-bold flex items-center gap-1.5 pt-1">
+                          <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" /> Dots indicate dates with cached snapshot records.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* MONTH PICKER */}
+                    {stockPeriod === "month" && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                          {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].map((mName, mIdx) => {
+                            const mStr = String(mIdx + 1).padStart(2, "0");
+                            const key = `${calDate.getFullYear()}-${mStr}`;
+                            const isSelected = (key === stockDate);
+                            const hasCache = calendarCache.month.includes(key);
+
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => fetchStockReport("month", key)}
+                                className={`p-3 rounded-lg text-xs font-bold transition-colors flex items-center justify-between border ${
+                                  isSelected
+                                    ? "bg-primary text-primary-foreground font-black border-primary"
+                                    : "hover:bg-muted border-border"
+                                }`}
+                              >
+                                <span>{mName}</span>
+                                {hasCache && (
+                                  <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? "bg-primary-foreground" : "bg-primary"}`} />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* YEAR PICKER */}
+                    {stockPeriod === "year" && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {[calDate.getFullYear() - 2, calDate.getFullYear() - 1, calDate.getFullYear(), calDate.getFullYear() + 1].map((yr) => {
+                            const key = String(yr);
+                            const isSelected = (key === stockDate);
+                            const hasCache = calendarCache.year.includes(key);
+
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => fetchStockReport("year", key)}
+                                className={`p-4 rounded-lg text-sm font-black transition-colors flex items-center justify-between border ${
+                                  isSelected
+                                    ? "bg-primary text-primary-foreground font-black border-primary"
+                                    : "hover:bg-muted border-border"
+                                }`}
+                              >
+                                <span>{yr}</span>
+                                {hasCache && (
+                                  <span className={`h-2 w-2 rounded-full ${isSelected ? "bg-primary-foreground" : "bg-primary"}`} />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+
                 <TabsContent value="ledger" className="space-y-4">
                   <div className="rounded-xl border overflow-hidden max-h-[300px] overflow-y-auto">
                     <Table>

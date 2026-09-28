@@ -128,6 +128,13 @@ def create_sale(
             balance.bank_balance += sale_data.paid_amount
 
     db.commit()
+
+    try:
+        from routers.finances import refresh_stock_value_cache
+        refresh_stock_value_cache(db)
+    except Exception as e:
+        print(f"Failed to refresh stock cache: {e}")
+
     return {"message": "Sale completed successfully", "invoice_id": new_transaction.id}
 
 

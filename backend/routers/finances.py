@@ -1,5 +1,6 @@
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
@@ -354,3 +355,243 @@ def get_global_ledger(
         
     ledger_entries.sort(key=lambda x: x["date"], reverse=True)
     return ledger_entries
+
+
+# --- STOCK VALUATION & MOVEMENT REPORT ---
+
+def _parse_period_bounds(period: str, period_key: str):
+    if period == "day":
+        try:
+            start_dt = datetime.strptime(period_key, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid date format for day period. Expected YYYY-MM-DD.")
+        end_dt = start_dt + timedelta(days=1)
+    elif period == "month":
+        try:
+            parts = period_key.split("-")
+            year, month = int(parts[0]), int(parts[1])
+            start_dt = datetime(year, month, 1)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid date format for month period. Expected YYYY-MM.")
+        if month == 12:
+            end_dt = datetime(year + 1, 1, 1)
+        else:
+            end_dt = datetime(year, month + 1, 1)
+    elif period == "year":
+        try:
+            year = int(period_key)
+            start_dt = datetime(year, 1, 1)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid date format for year period. Expected YYYY.")
+        end_dt = datetime(year + 1, 1, 1)
+    else:
+        raise HTTPException(status_code=400, detail="period must be one of: 'day', 'month', 'year'")
+    return start_dt, end_dt
+
+
+def _prune_stock_cache(db: Session):
+    limits = {"day": 50, "month": 5, "year": 2}
+    for p_type, max_limit in limits.items():
+        rows = (
+            db.query(models.StockValueCache)
+            .filter(models.StockValueCache.period_type == p_type)
+            .order_by(models.StockValueCache.period_key.desc())
+            .all()
+        )
+        if len(rows) > max_limit:
+            for old_row in rows[max_limit:]:
+                db.delete(old_row)
+
+
+def _compute_stock_metrics_for_period(period: str, period_key: str, db: Session):
+    start_dt, end_dt = _parse_period_bounds(period, period_key)
+
+    # Current stock live
+    prod_stats = db.query(
+        func.sum(models.Product.cost_price * models.Product.current_stock),
+        func.sum(models.Product.current_stock)
+    ).first()
+    curr_val = round(float(prod_stats[0] or 0.0), 2)
+    curr_units = int(prod_stats[1] or 0)
+
+    # Sold in range
+    sold_stats = (
+        db.query(
+            func.sum(models.TransactionItem.quantity * models.TransactionItem.unit_price),
+            func.sum(models.TransactionItem.quantity)
+        )
+        .join(models.Transaction, models.TransactionItem.transaction_id == models.Transaction.id)
+        .filter(
+            models.Transaction.type == "SALE",
+            models.Transaction.created_at >= start_dt,
+            models.Transaction.created_at < end_dt
+        )
+        .first()
+    )
+    sold_val = round(float(sold_stats[0] or 0.0), 2)
+    sold_units = int(sold_stats[1] or 0)
+
+    # Bought in range
+    bought_stats = (
+        db.query(
+            func.sum(models.TransactionItem.quantity * models.TransactionItem.unit_price),
+            func.sum(models.TransactionItem.quantity)
+        )
+        .join(models.Transaction, models.TransactionItem.transaction_id == models.Transaction.id)
+        .filter(
+            models.Transaction.type == "PURCHASE",
+            models.Transaction.created_at >= start_dt,
+            models.Transaction.created_at < end_dt
+        )
+        .first()
+    )
+    bought_val = round(float(bought_stats[0] or 0.0), 2)
+    bought_units = int(bought_stats[1] or 0)
+
+    return {
+        "current_stock_value": curr_val,
+        "current_stock_units": curr_units,
+        "stock_sold_value": sold_val,
+        "units_sold": sold_units,
+        "stock_bought_value": bought_val,
+        "units_bought": bought_units,
+    }
+
+
+def refresh_stock_value_cache(db: Session):
+    try:
+        now = datetime.utcnow()
+        today_key = now.strftime("%Y-%m-%d")
+        month_key = now.strftime("%Y-%m")
+        year_key = now.strftime("%Y")
+
+        for p_type, p_key in [("day", today_key), ("month", month_key), ("year", year_key)]:
+            data = _compute_stock_metrics_for_period(p_type, p_key, db)
+            cache_entry = db.query(models.StockValueCache).filter(
+                models.StockValueCache.period_key == p_key
+            ).first()
+            if not cache_entry:
+                cache_entry = models.StockValueCache(
+                    period_type=p_type,
+                    period_key=p_key
+                )
+                db.add(cache_entry)
+
+            cache_entry.total_value = data["current_stock_value"]
+            cache_entry.total_units = data["current_stock_units"]
+            cache_entry.stock_sold_value = data["stock_sold_value"]
+            cache_entry.stock_bought_value = data["stock_bought_value"]
+            cache_entry.units_sold = data["units_sold"]
+            cache_entry.units_bought = data["units_bought"]
+            cache_entry.recorded_at = now
+
+        _prune_stock_cache(db)
+        db.commit()
+    except Exception as e:
+        print(f"[STOCK_CACHE] Error refreshing cache: {e}")
+        db.rollback()
+
+
+@router.get("/stock-report")
+def get_stock_report(
+    period: str = "day",
+    date: Optional[str] = None,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    period = period.lower()
+    if period not in {"day", "month", "year"}:
+        raise HTTPException(status_code=400, detail="Period must be 'day', 'month', or 'year'")
+
+    now = datetime.utcnow()
+    current_keys = {
+        "day": now.strftime("%Y-%m-%d"),
+        "month": now.strftime("%Y-%m"),
+        "year": now.strftime("%Y"),
+    }
+    target_key = date or current_keys[period]
+    is_current = (target_key == current_keys[period])
+
+    if is_current:
+        metrics = _compute_stock_metrics_for_period(period, target_key, db)
+        cache_entry = db.query(models.StockValueCache).filter(
+            models.StockValueCache.period_key == target_key
+        ).first()
+        if not cache_entry:
+            cache_entry = models.StockValueCache(period_type=period, period_key=target_key)
+            db.add(cache_entry)
+        cache_entry.total_value = metrics["current_stock_value"]
+        cache_entry.total_units = metrics["current_stock_units"]
+        cache_entry.stock_sold_value = metrics["stock_sold_value"]
+        cache_entry.stock_bought_value = metrics["stock_bought_value"]
+        cache_entry.units_sold = metrics["units_sold"]
+        cache_entry.units_bought = metrics["units_bought"]
+        cache_entry.recorded_at = now
+        try:
+            _prune_stock_cache(db)
+            db.commit()
+        except Exception:
+            db.rollback()
+
+        return {
+            "period": period,
+            "date": target_key,
+            "current_stock_value": metrics["current_stock_value"],
+            "current_stock_units": metrics["current_stock_units"],
+            "stock_sold_value": metrics["stock_sold_value"],
+            "stock_bought_value": metrics["stock_bought_value"],
+            "units_sold": metrics["units_sold"],
+            "units_bought": metrics["units_bought"],
+            "is_cached": True,
+            "is_current": True,
+            "historical_stock_available": True
+        }
+
+    # Historical lookup
+    cache_entry = db.query(models.StockValueCache).filter(
+        models.StockValueCache.period_key == target_key
+    ).first()
+
+    if cache_entry:
+        return {
+            "period": period,
+            "date": target_key,
+            "current_stock_value": cache_entry.total_value,
+            "current_stock_units": cache_entry.total_units,
+            "stock_sold_value": cache_entry.stock_sold_value,
+            "stock_bought_value": cache_entry.stock_bought_value,
+            "units_sold": cache_entry.units_sold,
+            "units_bought": cache_entry.units_bought,
+            "is_cached": True,
+            "is_current": False,
+            "historical_stock_available": True
+        }
+
+    # Past date not in cache: compute sold/bought movement on the fly
+    movement = _compute_stock_metrics_for_period(period, target_key, db)
+    return {
+        "period": period,
+        "date": target_key,
+        "current_stock_value": None,
+        "current_stock_units": None,
+        "stock_sold_value": movement["stock_sold_value"],
+        "stock_bought_value": movement["stock_bought_value"],
+        "units_sold": movement["units_sold"],
+        "units_bought": movement["units_bought"],
+        "is_cached": False,
+        "is_current": False,
+        "historical_stock_available": False
+    }
+
+
+@router.get("/stock-report/calendar")
+def get_stock_report_calendar(
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    entries = db.query(models.StockValueCache.period_type, models.StockValueCache.period_key).all()
+    result = {"day": [], "month": [], "year": []}
+    for p_type, p_key in entries:
+        if p_type in result:
+            result[p_type].append(p_key)
+    return result

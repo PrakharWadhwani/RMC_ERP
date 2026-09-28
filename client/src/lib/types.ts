@@ -262,3 +262,26 @@ export interface SystemBalance {
   bank_balance: number;
   updated_at: string;
 }
+
+// --- STOCK VALUATION & MOVEMENT REPORT ---
+
+export interface StockReport {
+  period: "day" | "month" | "year";
+  date: string;
+  current_stock_value: number | null;
+  current_stock_units: number | null;
+  stock_sold_value: number;
+  stock_bought_value: number;
+  units_sold: number;
+  units_bought: number;
+  is_cached: boolean;
+  is_current: boolean;
+  historical_stock_available: boolean;
+}
+
+export interface StockCalendarResponse {
+  day: string[];
+  month: string[];
+  year: string[];
+}
+

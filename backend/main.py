@@ -91,6 +91,8 @@ def startup_restore_from_csv():
     db = SessionLocal()
     try:
         sync_csv_to_db(db)
+        finances.refresh_stock_value_cache(db)
+        print("[STARTUP] Stock value cache initialized")
     except Exception as e:
         print(f"[SYNC ENGINE LOG] Startup restore skipped: {e}")
     finally:

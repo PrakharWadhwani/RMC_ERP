@@ -200,3 +200,17 @@ class SalaryAdvance(Base):
     
     employee = relationship("Employee", back_populates="advances")
     user = relationship("User")
+
+# --- 9. STOCK VALUE CACHE ---
+class StockValueCache(Base):
+    __tablename__ = "stock_value_cache"
+    id = Column(Integer, primary_key=True, index=True)
+    period_type = Column(String, index=True)              # 'day', 'month', 'year'
+    period_key = Column(String, unique=True, index=True)  # 'YYYY-MM-DD', 'YYYY-MM', 'YYYY'
+    total_value = Column(Float, default=0.0)             # Σ(cost_price * current_stock)
+    total_units = Column(Integer, default=0)             # Σ(current_stock)
+    stock_sold_value = Column(Float, default=0.0)         # ₹ worth of stock sold in period
+    stock_bought_value = Column(Float, default=0.0)       # ₹ worth of stock bought in period
+    units_sold = Column(Integer, default=0)
+    units_bought = Column(Integer, default=0)
+    recorded_at = Column(DateTime, default=datetime.datetime.utcnow)
